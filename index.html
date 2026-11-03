@@ -13,6 +13,7 @@
   <script defer src="vendor/three.js"></script>
   <script defer src="js/catalog.js"></script>
   <script defer src="js/connections.js"></script>
+  <script defer src="js/shared-connections.js"></script>
   <script defer src="js/model.js"></script>
   <script defer src="js/default-layout.js"></script>
   <script defer src="js/defaults.js"></script>
@@ -50,6 +51,7 @@
         <div class="tabs" role="tablist" aria-label="보기 모드"><button role="tab" id="view-3d" aria-selected="true">◇ 3D View</button><button role="tab" id="view-plan" aria-selected="false">▦ 평면도</button><button role="tab" id="view-list" aria-selected="false">☷ 설비 목록</button></div>
         <div class="history-tools"><button id="undo" title="실행 취소 (Ctrl+Z)" aria-label="실행 취소">↶</button><button id="redo" title="다시 실행 (Ctrl+Shift+Z)" aria-label="다시 실행">↷</button><span class="divider"></span><button id="fit" class="icon-button" title="전체 보기 (F)" aria-label="전체 보기"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"/></svg></button><button id="labels-toggle" class="icon-button" title="이름 표시 켜기/끄기" aria-label="이름 표시" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 3h8l10 10-8 8L3 11z"/><circle cx="7.5" cy="7.5" r="1"/></svg></button></div>
       </div>
+      <div class="toast-layer"><div id="toast" role="status" aria-live="polite" hidden></div></div>
       <div class="viewport" id="viewport">
         <div id="scene" aria-label="3D 설비 배치도"></div>
         <div id="labels" class="labels" aria-hidden="true"></div>
@@ -68,44 +70,70 @@
       <div class="panel-heading"><div><span class="eyebrow">PROPERTIES</span><h2 id="inspector-title">설비 속성</h2></div></div>
       <div id="inspector-empty" class="inspector-empty"><span>◇</span><h3>설비를 선택하세요</h3><p>화면이나 좌측 목록에서 선택하면<br>위치와 크기를 편집할 수 있습니다.</p><div class="workflow"><b>01 <span>하단 썸네일에서 설비 선택</span></b><b>02 <span>바닥을 클릭하여 배치</span></b><b>03 <span>좌측 목록에서 계층 연결</span></b></div></div>
       <section id="connection-properties" hidden aria-label="연결선 속성">
+        <p id="connection-scope" class="live-edit-note"></p>
         <p id="connection-title" class="description"></p>
         <label>지름 (m)<input id="connection-diameter" type="number" min="0.02" max="2" step="0.01" value="0.2"></label>
         <fieldset><legend>선택 선분 색상</legend><div id="connection-palette" aria-label="선택 선분 색상"></div></fieldset>
         <p id="connection-selection" class="live-edit-note"></p>
         <div id="connection-point-fields" class="field-row" hidden><label>X (m)<input id="connection-x" type="number" step="0.01"></label><label>Z (m)<input id="connection-z" type="number" step="0.01"></label></div>
         <div class="connection-actions"><button id="connection-corner" type="button" aria-pressed="false">코너 추가</button><button id="connection-add" type="button">선분에 포인트 추가</button><button id="connection-delete" type="button">선택 포인트 삭제</button><button id="connection-optimize" type="button">포인트 최적화</button><button id="connection-reset" type="button">최단 경로 복원</button></div>
+        <p id="connection-feedback" class="live-edit-note" role="status"></p>
         <p id="connection-edit-hint" class="live-edit-note"></p>
         <p id="connection-error" class="error-message" role="alert"></p>
       </section>
       <form id="properties" hidden>
         <div class="selection-card"><span id="selection-icon"></span><div><strong id="selection-type"></strong><small id="selection-en"></small></div></div>
         <p id="selection-description" class="description"></p>
-        <fieldset><legend>기본 정보</legend><label>설비 이름<input name="name" maxlength="80" required></label><label>설비 코드<input name="code" maxlength="32" required></label></fieldset>
+        <fieldset><legend>기본 정보</legend><label>설비 이름<input name="name" maxlength="80" required></label><div class="equipment-code-field"><label for="equipment-code">설비 코드</label><div class="equipment-code-row"><input id="equipment-code" name="code" maxlength="32" readonly><button id="equipment-code-connect" type="button">연결</button></div></div></fieldset>
         <fieldset><legend>위치 <span>m</span></legend><div class="field-row"><label>X<input name="x" type="number" step="any" min="-100" max="100" required></label><label>Z<input name="z" type="number" step="any" min="-100" max="100" required></label></div><label>회전 <span>°</span><div class="rotation-input"><input name="rotation" type="number" step="any" min="0" max="359.999" required><button id="rotate" type="button" title="90도 회전 (R)">↻ 90°</button></div></label></fieldset>
-        <p class="live-edit-note">3D·평면도의 X·Z 화살표로 이동<br>↻ 90° 버튼으로 회전 · Esc로 이동 취소</p>
+        <p id="transform-note" class="live-edit-note">3D·평면도의 X·Z 화살표로 이동<br>↻ 90° 버튼으로 회전 · Esc로 이동 취소</p>
         <fieldset><legend>설비 크기 <span>m</span></legend><label class="ratio-lock"><input id="lock-ratio" type="checkbox" checked>비율 고정</label><div class="field-row three"><label>가로<input name="width" type="number" step="any" min="0.2" max="30" required></label><label>세로<input name="depth" type="number" step="any" min="0.2" max="30" required></label><label>높이<input name="height" type="number" step="any" min="0.2" max="40" required></label></div></fieldset>
-        <p class="live-edit-note">위치·회전·크기는 즉시 반영됩니다.</p>
-        <p id="property-error" class="error-message" role="alert"></p><button type="submit" class="primary apply-button">이름·코드 적용</button>
+        <p class="live-edit-note">이름·위치·회전·크기는 즉시 반영됩니다.</p>
+        <p id="property-error" class="error-message" role="alert"></p>
         <div class="object-actions"><button id="duplicate" type="button">복제</button><button id="delete" type="button" class="danger">삭제</button></div>
-        <p class="dimension-note">기본 치수는 배치용 예시입니다.<br>실제 설비 규격에 맞게 변경하세요.</p>
+        <p id="dimension-note" class="dimension-note">기본 치수는 배치용 예시입니다.<br>실제 설비 규격에 맞게 변경하세요.</p>
       </form>
     </aside>
   </main>
-  <div id="toast" role="status" aria-live="polite" hidden></div>
   <dialog id="default-dialog" aria-labelledby="default-title" aria-describedby="default-warning">
     <h2 id="default-title">기본 도면을 덮어쓸까요?</h2>
     <p id="default-summary"></p>
-    <p id="default-warning">프로젝트의 <code>js/default-layout.js</code>를 현재 도면으로 덮어씁니다. 이전 기본 도면은 교체되며, 이 파일 변경은 실행 취소(UNDO)로 되돌릴 수 없습니다.</p>
-    <p>현재 작업과 브라우저 자동 저장은 유지됩니다. GitHub에 반영하려면 별도로 커밋·푸시해야 합니다.</p>
-    <details><summary>내보낼 데이터 보기</summary><textarea id="default-source" readonly aria-label="기본 도면 파일 내용" spellcheck="false"></textarea></details>
+    <ul id="default-warning" class="dialog-message">
+      <li>현재 도면으로 기본 도면을 교체합니다.</li>
+      <li><strong>실행 취소로 되돌릴 수 없습니다.</strong></li>
+      <li>현재 작업과 자동 저장은 유지됩니다.</li>
+      <li>GitHub 반영은 별도 푸시가 필요합니다.</li>
+    </ul>
+    <details><summary>내보낼 데이터 보기</summary><p><code>js/default-layout.js</code></p><textarea id="default-source" readonly aria-label="기본 도면 파일 내용" spellcheck="false"></textarea></details>
     <p id="default-error" class="error-message" role="alert"></p>
+    <p><a id="branch-backup" download="공유분기-변환전-백업.fems" hidden>공유 분기점 변환 전 도면 백업 내려받기</a></p>
     <div class="dialog-actions"><button id="default-close" type="button" autofocus>취소</button><button id="default-overwrite" class="primary" type="button">덮어쓰기</button></div>
   </dialog>
   <dialog id="connection-reset-dialog" aria-labelledby="connection-reset-title" aria-describedby="connection-reset-description">
     <form method="dialog">
       <h2 id="connection-reset-title">최단 경로로 복원할까요?</h2>
-      <p id="connection-reset-description">선택한 연결선의 편집 포인트와 공통 시작점을 초기화합니다. 공통 시작점 변경은 같은 부모의 다른 연결선에도 영향을 줄 수 있습니다.<br>색상과 지름은 유지되며, 실행 취소로 되돌릴 수 있습니다.</p>
+      <p id="connection-reset-target" class="live-edit-note"></p>
+      <ul id="connection-reset-description" class="dialog-message">
+        <li>선택한 연결망 전체를 최단 직각 경로로 복원합니다.</li>
+        <li>분기점·설비 접속점·색상·지름은 유지됩니다.</li>
+        <li>다른 연결망은 변경하지 않습니다.</li>
+        <li>실행 취소로 복구할 수 있습니다.</li>
+      </ul>
       <div class="dialog-actions"><button value="cancel" autofocus>취소</button><button value="restore" class="primary">복원</button></div>
+    </form>
+  </dialog>
+  <dialog id="connection-optimize-dialog" aria-labelledby="connection-optimize-title" aria-describedby="connection-optimize-description">
+    <form method="dialog">
+      <h2 id="connection-optimize-title">포인트를 최적화할까요?</h2>
+      <p id="connection-optimize-target" class="live-edit-note"></p>
+      <ul id="connection-optimize-description" class="dialog-message">
+        <li>직선 위 불필요한 포인트를 제거합니다.</li>
+        <li><strong>기존 선분 색상이 사라질 수 있습니다.</strong></li>
+        <li>합쳐진 선분은 부모 쪽 색상을 사용합니다.</li>
+        <li>코너·분기점·설비 접속점은 유지됩니다.</li>
+        <li>실행 취소로 포인트와 색상을 복구할 수 있습니다.</li>
+      </ul>
+      <div class="dialog-actions"><button value="cancel" autofocus>취소</button><button value="optimize" class="primary">최적화</button></div>
     </form>
   </dialog>
   <div id="catalog-tooltip" role="tooltip" hidden><strong></strong><span></span></div>

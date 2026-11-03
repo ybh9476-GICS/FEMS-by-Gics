@@ -20,7 +20,7 @@ test('기본 도면 저장은 동일 출처의 검증된 데이터만 고정 파
   }
   try{
     const demo=M.demo(),parent=demo.equipment[0],child=demo.equipment[1];
-    const state=L.setSegmentColor(M.reparent(demo,child.id,parent.id),child.id,0,'#dc2626'),body=JSON.stringify(state);
+    const state=L.enableShared(L.setSegmentColor(M.reparent(demo,child.id,parent.id),child.id,0,'#dc2626')),body=JSON.stringify(state);
     for(const [headers,status] of [[{Origin:'https://example.com'},403],[{Origin:'null'},403],[{Origin:''},403],[{'Sec-Fetch-Site':'cross-site'},403],[{'Content-Type':'text/plain'},415],[{Host:'example.com'},403],[{Host:'127.0.0.1:1',Origin:'http://127.0.0.1:1'},403]]){
       assert.equal((await request(body,headers)).status,status);
       assert.equal(await fs.readFile(target,'utf8'),'original');

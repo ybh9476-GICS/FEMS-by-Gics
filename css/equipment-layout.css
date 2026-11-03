@@ -1,4 +1,9 @@
 .catalog-panel { min-width: 0; }
+.equipment-code-row { display: flex; align-items: stretch; gap: 7px; margin-top: 7px; }
+.equipment-code-row input { min-width: 0; flex: 1; margin-top: 0; }
+.equipment-code-field { margin-top: 12px; }
+.equipment-code-row input { font-size: 11px; padding: 8px; color: #4d6559; }
+.equipment-code-row button { flex-shrink: 0; padding: 8px 12px; font-size: 11px; }
 .catalog-panel .panel-hint { line-height: 1.7; padding-bottom: 14px; }
 .tree-scroll { flex: 1; min-height: 0; overflow: auto; padding: 12px 10px 16px; }
 #equipment-tree, #equipment-tree ul { list-style: none; margin: 0; padding: 0; }

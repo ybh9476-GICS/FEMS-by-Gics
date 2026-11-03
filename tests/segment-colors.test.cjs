@@ -44,14 +44,15 @@ test('설비 이동으로 자동 생성되는 직각은 해당 끝 선분 색상
   assert.deepEqual(L.route(changed,id).segmentColors,[blue,blue,green,red]);
   assert.deepEqual(M.validate(changed),changed);
 });
-test('최적화·드래그 정리는 색상 경계를 유지하고 명시적 포인트 삭제는 부모 쪽 색상을 계승한다',()=>{
+test('명시적 최적화는 직선 색상 경계를 부모 쪽 색상으로 합치고 드래그 정리는 색상 경계를 유지한다',()=>{
   const {state,id}=fixture();let line=L.storeRoute(state,id,[{x:-15,z:-5},{x:-10,z:-5},{x:-5,z:-5},{x:0,z:-5}]);
   line=L.setSegmentColor(line,id,1,red);
-  assert.deepEqual(L.optimize(line,id),line);
+  assert.deepEqual(L.route(L.optimize(line,id),id).segmentColors,[blue]);
+  assert.equal(L.route(L.optimize(line,id),id).points.length,2);
   const result=L.finishMove({state:line,index:0,generated:[1,2]},id,'segment');assert.deepEqual(result.state,line);
   const removed=L.deletePoint(line,id,1);assert.deepEqual(L.route(removed,id).segmentColors,[blue,blue]);
   line=L.setSegmentColor(line,id,2,red);const optimized=L.route(L.optimize(line,id),id);
-  assert.deepEqual(optimized.segmentColors,[blue,red]);assert.equal(optimized.points.length,3);
+  assert.deepEqual(optimized.segmentColors,[blue]);assert.equal(optimized.points.length,2);
 });
 test('최단 경로 복원은 색상 순서와 비율을 보존하면서 직선·직각 최단 거리를 만든다',()=>{
   const {state,id}=fixture(),colored=L.setSegmentColor(L.setSegmentColor(state,id,1,red),id,2,green),reset=L.reset(colored,id),line=L.route(reset,id);
@@ -59,6 +60,25 @@ test('최단 경로 복원은 색상 순서와 비율을 보존하면서 직선�
   const length=line.points.slice(1).reduce((sum,p,i)=>{const a=line.points[i];assert.ok(p.x===a.x||p.z===a.z);return sum+Math.hypot(p.x-a.x,p.z-a.z);},0);
   assert.ok(Math.abs(length-Math.abs(line.points[0].x-line.points.at(-1).x)-Math.abs(line.points[0].z-line.points.at(-1).z))<1e-6);
   assert.deepEqual(M.validate(reset),reset);
+});
+
+test('최적화는 계산 오차가 있는 직선점·길이 없는 구간·실제 색상 경계를 제거한다',()=>{
+  const {state,id}=fixture();
+  const nearlyStraight=L.storeRoute(state,id,[{x:-10,z:0},{x:-5,z:1e-12},{x:0,z:0},{x:0,z:5}]);
+  assert.equal(L.route(L.optimize(nearlyStraight,id),id).points.length,3);
+  for(const points of [
+    [{x:-10,z:0},{x:-10,z:0},{x:0,z:0}],
+    [{x:-10,z:0},{x:0,z:0},{x:0,z:0}]
+  ]){
+    const initial=L.storeRoute(state,id,points,[red,blue]);
+    const next=L.optimize(initial,id),line=L.route(next,id);
+    assert.deepEqual(line.points,[points[0],points.at(-1)]);
+    assert.deepEqual(line.segmentColors,[points[0].x===points[1].x?blue:red]);
+    assert.deepEqual(M.validate(next),next);assert.deepEqual(L.optimize(next,id),next);
+  }
+  const boundary=L.storeRoute(state,id,[{x:-10,z:0},{x:-5,z:0},{x:0,z:0}],[red,blue]);
+  const optimized=L.route(L.optimize(boundary,id),id);
+  assert.deepEqual(optimized.points,[{x:-10,z:0},{x:0,z:0}]);assert.deepEqual(optimized.segmentColors,[red]);
 });
 test('실제 Three.js 선분마다 색상을 적용하고 점선 시간은 공유하며 GPU 재료를 정리한다',()=>{
   const context={FEMSConnections:L,performance:{now:()=>1000}};context.window=context;vm.createContext(context);

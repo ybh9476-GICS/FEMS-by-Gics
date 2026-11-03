@@ -31,6 +31,19 @@ function fixture(mode) {
 }
 
 for (const mode of ['plan', '3d']) {
+  test(`${mode}: 이름표 클릭은 설비 선택, 드래그는 화면 이동이며 숨긴 이름표는 선택하지 않는다`, () => {
+    const {scene,listeners}=fixture(mode), label={hidden:false,textContent:'',style:{},getBoundingClientRect:()=>({left:180,right:220,top:180,bottom:220})};
+    scene.showLabels=true;scene.labels=new Map([['test',label]]);
+    scene.state.equipment[0].name='설비 이름';scene.state.equipment[0].code='CODE-01';
+    scene.updateLabels();assert.equal(label.textContent,'설비 이름');
+    const e={button:0,pointerId:1,clientX:200,clientY:200};
+    listeners.pointerdown(e);listeners.pointerup(e);assert.equal(scene.selected,'test');
+    scene.selected=null;listeners.pointerdown(e);listeners.pointermove({...e,clientX:260});listeners.pointerup({...e,clientX:260});
+    assert.equal(scene.selected,null);assert.ok(scene.target.length()>0);
+    scene.pickGizmo=()=> 'x';assert.equal(scene.pickTarget(e).axis,'x');scene.pickGizmo=()=>null;
+    label.hidden=true;assert.equal(scene.pickLabel(e),null);label.hidden=false;scene.showLabels=false;assert.equal(scene.pickLabel(e),null);
+    scene.showLabels=true;scene.armed='tower';assert.equal(scene.pickTarget(e).id,undefined);
+  });
   test(`${mode}: 우클릭은 3D에서만 회전하고 평면도에서는 무시한다`, () => {
     const { scene, listeners } = fixture(mode);
     const before = scene.camera.quaternion.clone();

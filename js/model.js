@@ -14,6 +14,11 @@
     if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) throw new Error(`${label}: ${min}~${max} 범위의 숫자가 필요합니다.`);
     return value;
   }
+  function equipmentCode(value) {
+    if(value==null)return '';
+    if(typeof value!=='string'||value.length>32)throw new Error('설비 코드: 32자 이하의 문자열이 필요합니다.');
+    return value.trim();
+  }
   function extents(item) {
     const a = item.rotation * Math.PI / 180;
     return { x: (Math.abs(Math.cos(a)) * item.width + Math.abs(Math.sin(a)) * item.depth) / 2,
@@ -25,23 +30,23 @@
       z: Math.round(Math.max(-site.depth / 2 + e.z, Math.min(site.depth / 2 - e.z, z)) * 1000) / 1000 };
   }
   function validate(raw) {
-    if (!raw || raw.format !== FORMAT || raw.version !== 1) throw new Error('FEMS v1 도면(.fems)만 열 수 있습니다. WMS 도면은 호환되지 않습니다.');
-    const result = { format: FORMAT, version: 1, name: text(raw.name, '도면 이름'), site: {
+    if (!raw || raw.format !== FORMAT || ![1,2].includes(raw.version)) throw new Error('FEMS v1/v2 도면(.fems)만 열 수 있습니다. WMS 도면은 호환되지 않습니다.');
+    const result = { format: FORMAT, version: raw.version, name: text(raw.name, '도면 이름'), site: {
       width: number(raw.site?.width, 20, 200, '부지 가로'), depth: number(raw.site?.depth, 20, 200, '부지 세로') }, equipment: [] };
     if (!Array.isArray(raw.equipment) || raw.equipment.length > LIMIT) throw new Error(`설비는 최대 ${LIMIT}개까지 지원합니다.`);
     const ids = new Set(), codes = new Set();
     for (const item of raw.equipment) {
       if (!item || !C.get(item.type)) throw new Error('알 수 없는 설비 종류가 포함되어 있습니다.');
-      const clean = { id: text(item.id, '설비 ID'), type: item.type, code: text(item.code, '설비 코드', 32), name: text(item.name, '설비 이름'),
+      const clean = { id: text(item.id, '설비 ID'), type: item.type, code: equipmentCode(item.code), name: text(item.name, '설비 이름'),
         x: number(item.x, -100, 100, 'X 좌표'), z: number(item.z, -100, 100, 'Z 좌표'),
         rotation: number(item.rotation, 0, 359.999, '회전'), width: number(item.width, 0.2, 30, '가로'),
         depth: number(item.depth, 0.2, 30, '세로'), height: number(item.height, 0.2, 40, '높이') };
-      if (ids.has(clean.id) || codes.has(clean.code.toUpperCase())) throw new Error('설비 ID와 코드는 중복될 수 없습니다.');
+      if (ids.has(clean.id) || (clean.code && codes.has(clean.code.toUpperCase()))) throw new Error('설비 ID와 지정된 코드는 중복될 수 없습니다.');
       if (item.parentId != null) clean.parentId = text(item.parentId, '상위 설비 ID');
       Object.assign(clean,L.clean(item,result.site));
-      ids.add(clean.id); codes.add(clean.code.toUpperCase());
+      ids.add(clean.id); if(clean.code)codes.add(clean.code.toUpperCase());
       const e = extents(clean);
-      if (Math.abs(clean.x) + e.x > result.site.width / 2 + 0.002 || Math.abs(clean.z) + e.z > result.site.depth / 2 + 0.002) throw new Error(`${clean.code}: 설비가 부지 경계를 벗어납니다.`);
+      if (Math.abs(clean.x) + e.x > result.site.width / 2 + 0.002 || Math.abs(clean.z) + e.z > result.site.depth / 2 + 0.002) throw new Error(`${clean.code || clean.name}: 설비가 부지 경계를 벗어납니다.`);
       result.equipment.push(clean);
     }
     const byId = new Map(result.equipment.map(item => [item.id, item]));
@@ -49,11 +54,12 @@
       const seen = new Set([item.id]);
       let parent = item.parentId;
       while (parent != null) {
-        if (!byId.has(parent)) throw new Error(`${item.code}: 상위 설비를 찾을 수 없습니다.`);
+        if (!byId.has(parent)) throw new Error(`${item.code || item.name}: 상위 설비를 찾을 수 없습니다.`);
         if (seen.has(parent)) throw new Error('자기 자신이나 하위 설비 안으로 이동할 수 없습니다.');
         seen.add(parent);parent = byId.get(parent).parentId;
       }
     }
+    if(raw.version===2)result.networks=L.validateNetworks(raw,result);
     return result;
   }
   function reparent(state, id, parentId = null) {
@@ -62,7 +68,7 @@
     if ((item.parentId || null) !== parentId) delete item.connection;
     if (parentId == null) delete item.parentId;
     else item.parentId = parentId;
-    return validate(next);
+    return validate(L.reconcileNetworks(next));
   }
   function removeEquipment(state, id) {
     const next = clone(state), item = next.equipment.find(e => e.id === id);
@@ -73,7 +79,7 @@
       else delete child.parentId;
     }
     next.equipment = next.equipment.filter(e => e.id !== id);
-    return validate(next);
+    return validate(L.reconcileNetworks(next));
   }
   function moveEquipment(state, id, parentId = null, referenceId = null, position = 'inside') {
     if (!['inside', 'before', 'after'].includes(position)) throw new Error('올바르지 않은 이동 위치입니다.');
@@ -89,16 +95,49 @@
     next.equipment.splice(index, 0, item);
     return next;
   }
+  function moveEquipmentGroup(state, ids, parentId = null, referenceId = null, position = 'inside') {
+    if(!['inside','before','after'].includes(position))throw new Error('올바르지 않은 이동 위치입니다.');
+    const chosen=new Set(ids),byId=new Map(state.equipment.map(e=>[e.id,e]));
+    if(!chosen.size||[...chosen].some(id=>!byId.has(id)))throw new Error('이동할 설비를 찾을 수 없습니다.');
+    if(parentId!=null&&!byId.has(parentId))throw new Error('상위 설비를 찾을 수 없습니다.');
+    for(let id=parentId;id;id=byId.get(id)?.parentId)if(chosen.has(id))throw new Error('자기 자신이나 하위 설비 안으로 이동할 수 없습니다.');
+    const reference=byId.get(referenceId);
+    if(position!=='inside'&&(!reference||(reference.parentId||null)!==parentId))throw new Error('같은 단계의 이동 기준 설비를 찾을 수 없습니다.');
+    // Traverse in tree order, moving only the highest selected ancestor of each subtree.
+    const children=new Map();for(const item of state.equipment){const key=item.parentId||null;if(!children.has(key))children.set(key,[]);children.get(key).push(item);}
+    const roots=[];
+    const visit=parent=>{for(const item of children.get(parent)||[]){if(chosen.has(item.id))roots.push(item.id);else visit(item.id);}};visit(null);
+    if(position!=='inside'&&roots.includes(referenceId))return clone(state);
+    const next=clone(state),rootIds=new Set(roots),moving=roots.map(id=>next.equipment.find(e=>e.id===id));
+    for(const item of moving){
+      if((item.parentId||null)!==parentId)delete item.connection;
+      if(parentId==null)delete item.parentId;else item.parentId=parentId;
+    }
+    next.equipment=next.equipment.filter(e=>!rootIds.has(e.id));
+    const index=position==='inside'?next.equipment.length:next.equipment.findIndex(e=>e.id===referenceId)+(position==='after'?1:0);
+    next.equipment.splice(index,0,...moving);
+    // Reconcile once after the complete move, so no intermediate hierarchy is saved.
+    return validate(L.reconcileNetworks(next));
+  }
   function empty() { return { format: FORMAT, version: 1, name: '새 FEMS 배치도', site: { width: 60, depth: 40 }, equipment: [] }; }
+  function duplicateName(state, originalName) {
+    const original=text(originalName,'설비 이름');
+    const base=original.replace(/\(\d+\)$/,'').trim()||original;
+    const names=new Set(state.equipment.map(item=>item.name.trim()));
+    for(let index=1;;index++){
+      const suffix=`(${index})`,candidate=base.slice(0,80-suffix.length).trimEnd()+suffix;
+      if(!names.has(candidate))return candidate;
+    }
+  }
   function create(type, state, x = 0, z = 0) {
     const def = C.get(type);
     if (!def) throw new Error('지원하지 않는 설비입니다.');
     if (state.equipment.length >= LIMIT) throw new Error(`설비는 최대 ${LIMIT}개까지 배치할 수 있습니다.`);
-    let index = 1;
-    const used = new Set(state.equipment.map(item => item.code.toUpperCase()));
-    while (used.has(`${def.code}-${String(index).padStart(2, '0')}`)) index++;
+    const names = new Set(state.equipment.map(item => item.name.trim()));
+    let name = def.name, suffix = 1;
+    while (names.has(name)) name = `${def.name}(${suffix++})`;
     const item = { id: 'eq-' + (root.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`),
-      type, code: `${def.code}-${String(index).padStart(2, '0')}`, name: def.name,
+      type, code: '', name,
       width: def.width, depth: def.depth, height: def.height, rotation: 0, x: 0, z: 0 };
     return Object.assign(item, clampPosition(item, x, z, state.site));
   }
@@ -116,6 +155,43 @@
     const ratio = value / item[field];
     return Object.fromEntries(dimensions.map(key => [key, key === field ? value :
       ratio === 1 ? item[key] : Number((item[key] * ratio).toPrecision(12))]));
+  }
+  function groupBounds(state, ids, frame = null) {
+    const items=state.equipment.filter(e=>ids.includes(e.id));
+    if(!items.length)throw new Error('선택한 설비가 없습니다.');
+    const angle=(frame?.rotation||0)*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
+    const bounds=items.map(item=>{const e=extents({...item,rotation:item.rotation-(frame?.rotation||0)});
+      const x=c*item.x-s*item.z,z=s*item.x+c*item.z;return {left:x-e.x,right:x+e.x,top:z-e.z,bottom:z+e.z};});
+    const left=Math.min(...bounds.map(b=>b.left)),right=Math.max(...bounds.map(b=>b.right)),top=Math.min(...bounds.map(b=>b.top)),bottom=Math.max(...bounds.map(b=>b.bottom));
+    const x=(left+right)/2,z=(top+bottom)/2;
+    return {x:frame?.x??c*x+s*z,z:frame?.z??-s*x+c*z,rotation:frame?.rotation||0,width:right-left,depth:bottom-top,height:Math.max(...items.map(e=>e.height))};
+  }
+  function transformGroup(state, ids, frame, field, value) {
+    if(!Number.isFinite(value))throw new Error('유효한 숫자를 입력하세요.');
+    const bounds=groupBounds(state,ids,frame),next=clone(state),pivot={x:bounds.x,z:bounds.z,rotation:bounds.rotation};
+    if(!['x','z','rotation','width','depth','height'].includes(field))throw new Error('지원하지 않는 그룹 속성입니다.');
+    if(value===bounds[field])return {state:validate(next),frame:pivot};
+    const dimensions=['width','depth','height'],scale=dimensions.includes(field)?value/bounds[field]:1;
+    if(scale<=0)throw new Error('크기는 0보다 커야 합니다.');
+    if(field==='rotation'&&(value<0||value>359.999))throw new Error('회전은 0~359.999°로 입력하세요.');
+    const angle=(field==='rotation'?value-bounds.rotation:0)*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
+    for(const item of next.equipment)if(ids.includes(item.id)){
+      const x=item.x-bounds.x,z=item.z-bounds.z;
+      item.x=bounds.x+(c*x+s*z)*scale+(field==='x'?value-bounds.x:0);
+      item.z=bounds.z+(-s*x+c*z)*scale+(field==='z'?value-bounds.z:0);
+      if(field==='rotation')item.rotation=((item.rotation+value-bounds.rotation)%360+360)%360;
+      for(const key of dimensions)item[key]*=scale;
+    }
+    if(field==='x'||field==='z'||field==='rotation')pivot[field]=value;
+    return {state:validate(next),frame:pivot};
+  }
+  function removeEquipmentGroup(state, ids) {
+    const next=clone(state),removed=new Set(ids),byId=new Map(state.equipment.map(e=>[e.id,e]));
+    next.equipment=next.equipment.filter(e=>!removed.has(e.id));
+    for(const item of next.equipment){let parent=item.parentId;while(parent&&removed.has(parent))parent=byId.get(parent)?.parentId;
+      if(parent!==item.parentId){delete item.connection;if(parent)item.parentId=parent;else delete item.parentId;}
+    }
+    return validate(L.reconcileNetworks(next));
   }
   function overlaps(state) {
     // Separating axis theorem: use rotated footprints, including edge-touch tolerance.
@@ -162,7 +238,7 @@
     undo() { this.finishEdit(); if (!this.past.length) return false; this.future.push(this.current); this.current = this.past.pop(); return true; }
     redo() { this.finishEdit(); if (!this.future.length) return false; this.past.push(this.current); this.current = this.future.pop(); return true; }
   }
-  const api = { STORAGE_KEY, FORMAT, LIMIT, clone, validate, empty, create, demo, extents, clampPosition, resizeDimensions, reparent, moveEquipment, removeEquipment, overlaps, History };
+  const api = { STORAGE_KEY, FORMAT, LIMIT, clone, validate, empty, create, duplicateName, demo, extents, clampPosition, resizeDimensions, groupBounds, transformGroup, removeEquipmentGroup, reparent, moveEquipment, moveEquipmentGroup, removeEquipment, overlaps, History };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.FEMSModel = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

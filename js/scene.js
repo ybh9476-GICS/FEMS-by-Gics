@@ -21,8 +21,8 @@
       this.observer=new ResizeObserver(()=>this.resize());this.observer.observe(host);
       this.bind();this.resize();
     }
-    setState(state, selected, warnings) {
-      this.state=state;this.selected=selected;this.warnings=warnings;
+    setState(state, selected, warnings, selectedIds=selected?[selected]:[]) {
+      this.state=state;this.selected=selected;this.selectedIds=selectedIds;this.warnings=warnings;
       const siteKey=JSON.stringify(state.site);
       if(siteKey!==this.siteKey){this.siteKey=siteKey;if(this.ground){this.scene.remove(this.ground);root.FEMSEquipment.dispose(this.ground);}
         this.ground=new T.Group();
@@ -41,12 +41,22 @@
           const label=document.createElement('span');label.className='object-label';this.labelHost.appendChild(label);this.labels.set(item.id,label);
           const footprint=new T.Mesh(new T.BoxGeometry(1,.025,1),new T.MeshBasicMaterial({color:root.FEMSCatalog.get(item.type).color}));footprint.userData.equipmentId=item.id;this.footprints.set(item.id,footprint);this.scene.add(footprint);}
         model.scale.set(item.width,item.height,item.depth);model.position.set(item.x,0,item.z);model.rotation.y=item.rotation*Math.PI/180;model.visible=this.mode==='3d';
-        const footprint=this.footprints.get(item.id);footprint.scale.set(item.width,1,item.depth);footprint.position.set(item.x,.01,item.z);footprint.rotation.y=model.rotation.y;footprint.visible=this.mode==='plan';footprint.material.color.set(item.id===selected?'#37886d':root.FEMSCatalog.get(item.type).color);
-        const label=this.labels.get(item.id);label.className='object-label'+(item.id===selected?' selected':'')+(warnings.has(item.id)?' warning':'');
+        const footprint=this.footprints.get(item.id);footprint.scale.set(item.width,1,item.depth);footprint.position.set(item.x,.01,item.z);footprint.rotation.y=model.rotation.y;footprint.visible=this.mode==='plan';footprint.material.color.set(selectedIds.includes(item.id)?'#37886d':root.FEMSCatalog.get(item.type).color);
+        const label=this.labels.get(item.id);label.className='object-label'+(selectedIds.includes(item.id)?' selected':'')+(warnings.has(item.id)?' warning':'');
       }
       this.connections?.setState(state);this.updateSelection();this.updateCursor();this.invalidate();
     }
-    updateSelection() {const item=this.state?.equipment.find(e=>e.id===this.selected);this.selection.visible=!!item;if(item){this.selection.box.setFromObject(this.mode==='plan'?this.footprints.get(item.id):this.models.get(item.id));this.selection.box.expandByScalar(.09);}}
+    updateSelection() {
+      const item=this.state?.equipment.find(e=>e.id===this.selected);this.selection.visible=!!item;
+      if(item){this.selection.box.setFromObject(this.mode==='plan'?this.footprints.get(item.id):this.models.get(item.id));this.selection.box.expandByScalar(.09);}
+      this.multipleBoxes??=new Map();
+      const ids=(this.selectedIds||[]).filter(id=>id!==this.selected);
+      for(const [id,box] of this.multipleBoxes)if(!ids.includes(id)){this.scene.remove(box);box.geometry.dispose();box.material.dispose();this.multipleBoxes.delete(id);}
+      for(const id of ids){const object=this.mode==='plan'?this.footprints.get(id):this.models.get(id);if(!object)continue;
+        let box=this.multipleBoxes.get(id);if(!box){box=new T.Box3Helper(new T.Box3(),'#32826a');this.multipleBoxes.set(id,box);this.scene.add(box);}
+        box.box.setFromObject(object);box.box.expandByScalar(.09);
+      }
+    }
     setMode(mode){if(this.drag?.axis||this.drag?.connection)this.cancelDrag();this.setHover();this.lastPointer=null;this.mode=mode;if(mode==='plan')this.planYaw=0;this.camera=mode==='plan'?this.ortho:this.perspective;this.models.forEach(m=>m.visible=mode==='3d');this.footprints.forEach(m=>m.visible=mode==='plan');this.resize();this.updateSelection();}
     setArmed(type){if(this.drag?.axis||this.drag?.connection)this.cancelDrag();this.setHover();this.armed=type;this.ghost.visible=false;this.updateCursor();this.invalidate();}
     updateGizmo(){
@@ -62,8 +72,9 @@
       // Alt is an explicit equipment override, including an overlapping gizmo.
       if(event.altKey){const id=this.pick(event);if(id)return {id};}
       const axis=this.pickGizmo(event);if(axis)return {axis};
+      const labelId=this.pickLabel(event);if(labelId)return {id:labelId};
       const id=this.pick(event);
-      if(this.mode==='plan'&&this.connections){
+      if((this.mode==='plan'||this.mode==='3d')&&this.connections){
         const rect=this.host.getBoundingClientRect();
         const point=this.connections.pick(event,this.camera,rect,{pointsOnly:true,movableOnly:true});
         if(point)return {link:point};
@@ -108,9 +119,25 @@
       this.target.x = Math.max(-120, Math.min(120, this.target.x));
       this.target.z = Math.max(-120, Math.min(120, this.target.z));
     }
-    floor(event){this.setPointer(event);const hit=new T.Vector3();return this.ray.ray.intersectPlane(this.floorPlane,hit);}
+    floor(event,height=0){this.setPointer(event);const hit=new T.Vector3();return this.ray.ray.intersectPlane(height?new T.Plane(new T.Vector3(0,1,0),-height):this.floorPlane,hit);}
+    connectionTolerance(event,height){
+      const p=this.floor(event,height);if(!p)return 0;
+      const x=this.floor({...event,clientX:event.clientX+6,clientY:event.clientY},height),z=this.floor({...event,clientX:event.clientX,clientY:event.clientY+6},height);
+      return Math.max(x?p.distanceTo(x):0,z?p.distanceTo(z):0);
+    }
     setPointer(event){const rect=this.host.getBoundingClientRect();this.pointer.set((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1);this.ray.setFromCamera(this.pointer,this.camera);}
     pick(event){this.setPointer(event);return this.ray.intersectObjects(Array.from((this.mode==='plan'?this.footprints:this.models).values()),true)[0]?.object.userData.equipmentId;}
+    pickLabel(event){
+      if(!this.showLabels)return null;
+      // Labels stay pointer-transparent so camera drags and wheel zoom still reach the canvas.
+      // Reverse DOM order matches the label painted on top when labels overlap.
+      for(const [id,label] of Array.from(this.labels||[]).reverse()){
+        if(label.hidden)continue;
+        const r=label.getBoundingClientRect();
+        if(event.clientX>=r.left&&event.clientX<=r.right&&event.clientY>=r.top&&event.clientY<=r.bottom)return id;
+      }
+      return null;
+    }
     bind(){const canvas=this.renderer.domElement;
       canvas.addEventListener('contextmenu',e=>e.preventDefault());
       canvas.addEventListener('wheel',e=>{e.preventDefault();if(!this.drag?.axis&&!this.drag?.connection)this.zoom(Math.exp(Math.sign(e.deltaY)*.09));},{passive:false});
@@ -128,9 +155,10 @@
         }
         if(link){
           this.handlers.connectionSelect(link);this.handlers.connectionStart(link);
-          const p=this.floor(e),points=root.FEMSConnections.route(this.state,link.id)?.points;
+          const route=root.FEMSConnections.route(this.state,link.id),height=.08+route.diameter/2+(link.handle?.04:.02);
+          const p=this.floor(e,height),points=route.points;
           const source=link.handle?{x:(points[link.index].x+points[link.index+1].x)/2,z:(points[link.index].z+points[link.index+1].z)/2}:points?.[link.index];
-          this.drag={connection:link,button:0,pointerId:e.pointerId,x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,moved:false,offset:p&&source?{x:source.x-p.x,z:source.z-p.z}:{x:0,z:0}};
+          this.drag={connection:link,height,button:0,pointerId:e.pointerId,x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,moved:false,offset:p&&source?{x:source.x-p.x,z:source.z-p.z}:{x:0,z:0}};
           canvas.setPointerCapture(e.pointerId);this.host.style.cursor='default';return;
         }
         const point=this.floor(e);this.drag={x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,button:e.button,pointerId:e.pointerId,id,moved:false};
@@ -142,7 +170,7 @@
           const d=this.drag;if(e.pointerId!==d.pointerId)return;
           if(Math.hypot(e.clientX-d.x,e.clientY-d.y)>3)d.moved=true;
           if(!d.moved)return;
-          if(d.connection.kind==='point'||d.connection.handle){if(d.connection.locked)return;const p=this.floor(e);if(p)this.handlers.connectionPreview({x:Math.max(-this.state.site.width/2,Math.min(this.state.site.width/2,p.x+d.offset.x)),z:Math.max(-this.state.site.depth/2,Math.min(this.state.site.depth/2,p.z+d.offset.z))},{tolerance:e.shiftKey?0:(this.camera.top-this.camera.bottom)/this.camera.zoom/this.host.getBoundingClientRect().height*6});}
+          if(d.connection.kind==='point'||d.connection.handle){if(d.connection.locked)return;const p=this.floor(e,d.height);if(p)this.handlers.connectionPreview({x:Math.max(-this.state.site.width/2,Math.min(this.state.site.width/2,p.x+d.offset.x)),z:Math.max(-this.state.site.depth/2,Math.min(this.state.site.depth/2,p.z+d.offset.z))},{tolerance:e.shiftKey?0:this.connectionTolerance(e,d.height)});}
           else{this.pan(e.clientX-d.lastX,e.clientY-d.lastY);this.updateCamera();}
           d.lastX=e.clientX;d.lastY=e.clientY;return;
         }
@@ -180,7 +208,7 @@
       canvas.addEventListener('webglcontextrestored',()=>this.handlers.error('그래픽 연결이 복구되었습니다. 저장 후 새로고침하여 화면을 다시 열어 주세요.'));
     }
     invalidate(){if(this.pending)return;this.pending=true;requestAnimationFrame(()=>{this.pending=false;if(!this.host.clientHeight||!this.host.clientWidth||root.document?.hidden)return;this.updateGizmo();this.updateHoverVisual();this.connections?.update(this.camera,this.height,this.mode,this.armed,this.connectionSelection,this.drag?null:this.hoverLink,{guides:this.connectionGuides,corner:this.cornerMode,site:this.state?.site});this.renderer.render(this.scene,this.camera);this.updateLabels();this.gizmo?.updateLabels(this.camera,this.width,this.height);if(this.connections?.active)this.invalidate();});}
-    updateLabels(){if(!this.state)return;const v=new T.Vector3();for(const item of this.state.equipment){const model=this.models.get(item.id);v.set(model.position.x,this.mode==='plan'?.1:item.height+.3,model.position.z).project(this.camera);const label=this.labels.get(item.id);const text=this.mode==='3d'?item.name:`${item.code} · ${item.name}`;if(label.textContent!==text)label.textContent=text;label.hidden=!this.showLabels||v.z>1||v.z< -1||Math.abs(v.x)>1.1||Math.abs(v.y)>1.1;label.style.left=((v.x+1)/2*this.width)+'px';label.style.top=((-v.y+1)/2*this.height)+'px';}}
+    updateLabels(){if(!this.state)return;const v=new T.Vector3();for(const item of this.state.equipment){const model=this.models.get(item.id);v.set(model.position.x,this.mode==='plan'?.1:item.height+.3,model.position.z).project(this.camera);const label=this.labels.get(item.id);const text=item.name;if(label.textContent!==text)label.textContent=text;label.hidden=!this.showLabels||v.z>1||v.z< -1||Math.abs(v.x)>1.1||Math.abs(v.y)>1.1;label.style.left=((v.x+1)/2*this.width)+'px';label.style.top=((-v.y+1)/2*this.height)+'px';}}
   }
   root.FEMSScene=Scene;
 })(window);

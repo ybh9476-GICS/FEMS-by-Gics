@@ -1,7 +1,7 @@
 // Shared startup drawing. Exported from FEMS by Gics.
 window.FEMSDefaultLayout = {
   "format": "gics-fems",
-  "version": 1,
+  "version": 2,
   "name": "FEMS 설비 배치 예시",
   "site": {
     "width": 60,
@@ -9,243 +9,455 @@ window.FEMSDefaultLayout = {
   },
   "equipment": [
     {
-      "id": "eq-106738cd-8502-4bb9-9889-d481a66c9d4a",
-      "type": "mcc",
-      "code": "MCC-01",
-      "name": "MCC",
-      "x": -7,
-      "z": 5,
-      "rotation": 0,
-      "width": 2.4,
-      "depth": 0.8,
-      "height": 2.2
-    },
-    {
-      "id": "eq-dedc8f5e-fc28-4538-bea9-7a12beba13e6",
+      "id": "eq-f9140d03-45e0-4d88-b0e0-09ae5a7f4172",
       "type": "tower",
-      "code": "GRID-01",
+      "code": "",
       "name": "송전탑",
-      "x": -15,
-      "z": -6.59,
+      "x": -24.5,
+      "z": -0.5,
       "rotation": 0,
       "width": 3.6,
       "depth": 3.6,
-      "height": 12,
-      "junction": {
-        "x": 0,
-        "z": 0
-      }
+      "height": 12
     },
     {
-      "id": "eq-f8c8b2b0-fdd2-43a2-83d7-8e82b991752a",
-      "type": "distribution",
-      "code": "LV-02",
-      "name": "저압 배전반",
-      "x": -4.26,
-      "z": 16.27,
+      "id": "eq-745a5afa-3d39-4024-9e4f-338e21112cdd",
+      "type": "receiving",
+      "code": "",
+      "name": "수전반",
+      "x": -11.37,
+      "z": -9.13,
       "rotation": 0,
       "width": 2.4,
-      "depth": 0.9,
-      "height": 2.2,
-      "parentId": "eq-dedc8f5e-fc28-4538-bea9-7a12beba13e6",
-      "connection": {
-        "diameter": 0.2,
-        "color": "#2563eb",
-        "bends": [
-          {
-            "x": -7.02,
-            "z": -6.59
-          },
-          {
-            "x": -7.02,
-            "z": -1.48
-          },
-          {
-            "x": -3.09,
-            "z": -1.48
-          },
-          {
-            "x": -3.09,
-            "z": 2.78
-          },
-          {
-            "x": -9.72,
-            "z": 2.78
-          },
-          {
-            "x": -9.72,
-            "z": 6.85
-          },
-          {
-            "x": -4.26,
-            "z": 6.85
-          }
-        ],
-        "end": {
-          "x": 0,
-          "z": 0
-        }
-      }
-    },
-    {
-      "id": "eq-4d1d64d0-b5bc-4767-8ade-4462849a9fbe",
-      "type": "receiving",
-      "code": "SW-01",
-      "name": "수전반",
-      "x": -7,
-      "z": -10.84,
-      "rotation": 0,
-      "width": 2.38,
-      "depth": 1.09,
+      "depth": 1.2,
       "height": 2.4,
-      "parentId": "eq-dedc8f5e-fc28-4538-bea9-7a12beba13e6",
-      "connection": {
-        "diameter": 0.2,
-        "color": "#2563eb",
-        "bends": [
-          {
-            "x": -9.44,
-            "z": -6.59
-          },
-          {
-            "x": -9.44,
-            "z": -5.89
-          },
-          {
-            "x": -7,
-            "z": -5.89
-          }
-        ],
-        "end": {
-          "x": 0,
-          "z": 0
-        }
-      }
+      "parentId": "eq-f9140d03-45e0-4d88-b0e0-09ae5a7f4172"
     },
     {
-      "id": "eq-75cd381f-7204-4844-9d1d-0131ab69a3c6",
-      "type": "panel",
-      "code": "DB-01",
-      "name": "분전반",
-      "x": 0,
-      "z": 5,
-      "rotation": 0,
-      "width": 0.8,
-      "depth": 0.35,
-      "height": 1.4
-    },
-    {
-      "id": "eq-5796b10f-a882-45ff-bcb2-f3b3fa426197",
-      "type": "solar",
-      "code": "PV-01",
-      "name": "태양광 패널",
-      "x": -15,
-      "z": 6,
-      "rotation": 0,
-      "width": 5,
-      "depth": 3,
-      "height": 1.8
-    },
-    {
-      "id": "eq-e5daa52d-4fd8-4c76-814c-4c138427f6d2",
-      "type": "ess",
-      "code": "ESS-01",
-      "name": "ESS",
-      "x": 14.87,
-      "z": 3.81,
-      "rotation": 0,
-      "width": 3.67,
-      "depth": 2,
-      "height": 2.6
-    },
-    {
-      "id": "eq-4a00f6e0-a76b-4fdf-ab30-bad494beb044",
+      "id": "eq-52a0f9aa-8876-4d9c-8701-f2db1a855bab",
       "type": "transformer",
-      "code": "TR-01",
+      "code": "",
       "name": "변압기",
-      "x": 25.94,
-      "z": 8.61,
+      "x": -7.67,
+      "z": 11.38,
       "rotation": 0,
       "width": 2.4,
       "depth": 1.8,
       "height": 2.4,
-      "parentId": "eq-4d1d64d0-b5bc-4767-8ade-4462849a9fbe",
-      "connection": {
-        "diameter": 0.2,
-        "color": "#2563eb"
-      }
+      "parentId": "eq-f9140d03-45e0-4d88-b0e0-09ae5a7f4172"
     },
     {
-      "id": "eq-504689bf-96aa-4ddf-81f8-ff32dd237155",
-      "type": "ups",
-      "code": "UPS-01",
-      "name": "UPS",
-      "x": 7,
-      "z": 10.79,
+      "id": "eq-7005d82b-a46f-41df-9b13-ecb2eed2d360",
+      "type": "tower",
+      "code": "",
+      "name": "송전탑(1)",
+      "x": 3,
+      "z": -10.5,
       "rotation": 0,
-      "width": 1.2,
-      "depth": 1,
-      "height": 1.8,
-      "parentId": "eq-4d1d64d0-b5bc-4767-8ade-4462849a9fbe",
-      "junction": {
-        "x": 0,
-        "z": 0
-      },
-      "connection": {
-        "diameter": 0.2,
-        "color": "#2563eb"
-      }
+      "width": 3.6,
+      "depth": 3.6,
+      "height": 12
     },
     {
-      "id": "eq-726afbc1-7f75-4dd2-9cc4-afe8b7669ce9",
+      "id": "eq-144b7596-d4cf-4f89-a317-3f706a15961a",
+      "type": "receiving",
+      "code": "",
+      "name": "수전반(1)",
+      "x": -0.86,
+      "z": -0.5,
+      "rotation": 0,
+      "width": 2.4,
+      "depth": 1.2,
+      "height": 2.4,
+      "parentId": "eq-7005d82b-a46f-41df-9b13-ecb2eed2d360"
+    },
+    {
+      "id": "eq-e60ce7b2-4c36-4cf1-9970-49a2f900bee7",
+      "type": "transformer",
+      "code": "",
+      "name": "변압기(1)",
+      "x": 5.5,
+      "z": 8.81,
+      "rotation": 0,
+      "width": 2.4,
+      "depth": 1.8,
+      "height": 2.4,
+      "parentId": "eq-144b7596-d4cf-4f89-a317-3f706a15961a"
+    },
+    {
+      "id": "eq-76e7671c-d158-48f4-af98-e108d7a0419d",
       "type": "distribution",
-      "code": "LV-01",
+      "code": "",
       "name": "저압 배전반",
-      "x": 0.65,
-      "z": -16.57,
-      "rotation": 0,
+      "x": 12.12,
+      "z": -0.4,
+      "rotation": 90,
       "width": 2.4,
       "depth": 0.9,
       "height": 2.2,
-      "parentId": "eq-504689bf-96aa-4ddf-81f8-ff32dd237155",
-      "connection": {
-        "diameter": 0.2,
-        "color": "#2563eb",
-        "bends": [
-          {
-            "x": 0.23,
-            "z": 10.79
-          },
-          {
-            "x": 0.23,
-            "z": 7.31
-          },
-          {
-            "x": 1.96,
-            "z": 7.31
-          },
-          {
-            "x": 1.96,
-            "z": 3.56
-          },
-          {
-            "x": -0.57,
-            "z": 3.56
-          },
-          {
-            "x": -0.57,
-            "z": -0.23
-          },
-          {
-            "x": 0.65,
-            "z": -0.23
+      "parentId": "eq-e60ce7b2-4c36-4cf1-9970-49a2f900bee7"
+    },
+    {
+      "id": "eq-a7943e0b-c305-447d-a96f-734ca7ad240a",
+      "type": "panel",
+      "code": "",
+      "name": "분전반",
+      "x": 16,
+      "z": 5,
+      "rotation": 90,
+      "width": 0.8,
+      "depth": 0.35,
+      "height": 1.4,
+      "parentId": "eq-76e7671c-d158-48f4-af98-e108d7a0419d"
+    },
+    {
+      "id": "eq-7671881e-959e-4772-b1ad-ecf3ad12badf",
+      "type": "panel",
+      "code": "",
+      "name": "분전반(1)",
+      "x": 15.91,
+      "z": 0.61,
+      "rotation": 90,
+      "width": 0.8,
+      "depth": 0.35,
+      "height": 1.4,
+      "parentId": "eq-76e7671c-d158-48f4-af98-e108d7a0419d"
+    },
+    {
+      "id": "eq-01b9a196-b5f8-413a-8351-4c21dacbab92",
+      "type": "panel",
+      "code": "",
+      "name": "분전반(2)",
+      "x": 15.77,
+      "z": -2.81,
+      "rotation": 90,
+      "width": 0.8,
+      "depth": 0.35,
+      "height": 1.4,
+      "parentId": "eq-76e7671c-d158-48f4-af98-e108d7a0419d"
+    }
+  ],
+  "networks": [
+    {
+      "parentId": "eq-f9140d03-45e0-4d88-b0e0-09ae5a7f4172",
+      "root": "n0",
+      "nodes": [
+        {
+          "id": "n0",
+          "equipmentId": "eq-f9140d03-45e0-4d88-b0e0-09ae5a7f4172",
+          "offset": {
+            "x": 0,
+            "z": 0
           }
-        ],
-        "end": {
-          "x": 0,
-          "z": 0
+        },
+        {
+          "id": "n3",
+          "equipmentId": "eq-52a0f9aa-8876-4d9c-8701-f2db1a855bab",
+          "offset": {
+            "x": 0,
+            "z": 0
+          }
+        },
+        {
+          "id": "n7",
+          "equipmentId": "eq-745a5afa-3d39-4024-9e4f-338e21112cdd",
+          "offset": {
+            "x": 0,
+            "z": 0
+          }
         }
-      }
+      ],
+      "edges": [
+        {
+          "id": "net:eq-f9140d03-45e0-4d88-b0e0-09ae5a7f4172:n1",
+          "from": "n0",
+          "to": "n3",
+          "bends": [
+            {
+              "x": -7.670000000000002,
+              "z": -0.5
+            }
+          ],
+          "color": "#2563eb",
+          "diameter": 0.2,
+          "segmentColors": [
+            "#2563eb",
+            "#16a34a"
+          ]
+        },
+        {
+          "id": "net:eq-f9140d03-45e0-4d88-b0e0-09ae5a7f4172:n4",
+          "from": "n0",
+          "to": "n7",
+          "bends": [
+            {
+              "x": -19.2,
+              "z": -0.5
+            },
+            {
+              "x": -19.2,
+              "z": -9.13
+            },
+            {
+              "x": -11.37,
+              "z": -9.13
+            },
+            {
+              "x": -11.37,
+              "z": -9.5
+            }
+          ],
+          "color": "#2563eb",
+          "diameter": 0.2,
+          "segmentColors": [
+            "#2563eb",
+            "#0ea5e9",
+            "#2563eb",
+            "#2563eb",
+            "#2563eb"
+          ]
+        }
+      ]
+    },
+    {
+      "parentId": "eq-7005d82b-a46f-41df-9b13-ecb2eed2d360",
+      "root": "n0",
+      "nodes": [
+        {
+          "id": "n0",
+          "equipmentId": "eq-7005d82b-a46f-41df-9b13-ecb2eed2d360",
+          "offset": {
+            "x": 0,
+            "z": 0
+          }
+        },
+        {
+          "id": "n3",
+          "equipmentId": "eq-144b7596-d4cf-4f89-a317-3f706a15961a",
+          "offset": {
+            "x": 0,
+            "z": 0
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "net:eq-7005d82b-a46f-41df-9b13-ecb2eed2d360:n1",
+          "from": "n0",
+          "to": "n3",
+          "bends": [
+            {
+              "x": 3,
+              "z": -0.5
+            }
+          ],
+          "color": "#2563eb",
+          "diameter": 0.2,
+          "segmentColors": [
+            "#2563eb",
+            "#2563eb"
+          ]
+        }
+      ]
+    },
+    {
+      "parentId": "eq-144b7596-d4cf-4f89-a317-3f706a15961a",
+      "root": "n0",
+      "nodes": [
+        {
+          "id": "n0",
+          "equipmentId": "eq-144b7596-d4cf-4f89-a317-3f706a15961a",
+          "offset": {
+            "x": 0,
+            "z": 0
+          }
+        },
+        {
+          "id": "n2",
+          "equipmentId": "eq-e60ce7b2-4c36-4cf1-9970-49a2f900bee7",
+          "offset": {
+            "x": 0,
+            "z": 0
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "net:eq-144b7596-d4cf-4f89-a317-3f706a15961a:n1",
+          "from": "n0",
+          "to": "n2",
+          "bends": [
+            {
+              "x": -0.86,
+              "z": 8.27
+            },
+            {
+              "x": 5.5,
+              "z": 8.27
+            }
+          ],
+          "color": "#2563eb",
+          "diameter": 0.2,
+          "segmentColors": [
+            "#2563eb",
+            "#2563eb",
+            "#2563eb"
+          ]
+        }
+      ]
+    },
+    {
+      "parentId": "eq-e60ce7b2-4c36-4cf1-9970-49a2f900bee7",
+      "root": "n0",
+      "nodes": [
+        {
+          "id": "n0",
+          "equipmentId": "eq-e60ce7b2-4c36-4cf1-9970-49a2f900bee7",
+          "offset": {
+            "x": 0,
+            "z": 0
+          }
+        },
+        {
+          "id": "n3",
+          "equipmentId": "eq-76e7671c-d158-48f4-af98-e108d7a0419d",
+          "offset": {
+            "x": 0,
+            "z": 0
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "net:eq-e60ce7b2-4c36-4cf1-9970-49a2f900bee7:n1",
+          "from": "n0",
+          "to": "n3",
+          "bends": [
+            {
+              "x": 10.5,
+              "z": 8.81
+            }
+          ],
+          "color": "#2563eb",
+          "diameter": 0.2,
+          "segmentColors": [
+            "#2563eb",
+            "#2563eb"
+          ]
+        }
+      ]
+    },
+    {
+      "parentId": "eq-76e7671c-d158-48f4-af98-e108d7a0419d",
+      "root": "n0",
+      "nodes": [
+        {
+          "id": "n0",
+          "equipmentId": "eq-76e7671c-d158-48f4-af98-e108d7a0419d",
+          "offset": {
+            "x": 0,
+            "z": 0
+          }
+        },
+        {
+          "id": "n3",
+          "equipmentId": "eq-a7943e0b-c305-447d-a96f-734ca7ad240a",
+          "offset": {
+            "x": 0,
+            "z": 0
+          }
+        },
+        {
+          "id": "n4",
+          "x": 13.44,
+          "z": -0.4
+        },
+        {
+          "id": "n7",
+          "equipmentId": "eq-7671881e-959e-4772-b1ad-ecf3ad12badf",
+          "offset": {
+            "x": 0,
+            "z": 0
+          }
+        },
+        {
+          "id": "n9",
+          "equipmentId": "eq-01b9a196-b5f8-413a-8351-4c21dacbab92",
+          "offset": {
+            "x": 0,
+            "z": 0
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "net:eq-76e7671c-d158-48f4-af98-e108d7a0419d:n1",
+          "from": "n0",
+          "to": "n3",
+          "bends": [
+            {
+              "x": 13.44,
+              "z": -0.4
+            },
+            {
+              "x": 13.44,
+              "z": 5
+            }
+          ],
+          "color": "#2563eb",
+          "diameter": 0.2,
+          "segmentColors": [
+            "#2563eb",
+            "#2563eb",
+            "#2563eb"
+          ]
+        },
+        {
+          "id": "net:eq-76e7671c-d158-48f4-af98-e108d7a0419d:n4",
+          "from": "n0",
+          "to": "n4",
+          "bends": [],
+          "color": "#2563eb",
+          "diameter": 0.2,
+          "segmentColors": [
+            "#2563eb"
+          ]
+        },
+        {
+          "id": "net:eq-76e7671c-d158-48f4-af98-e108d7a0419d:n5",
+          "from": "n4",
+          "to": "n7",
+          "bends": [
+            {
+              "x": 13.44,
+              "z": 0.61
+            }
+          ],
+          "color": "#2563eb",
+          "diameter": 0.2,
+          "segmentColors": [
+            "#2563eb",
+            "#2563eb"
+          ]
+        },
+        {
+          "id": "net:eq-76e7671c-d158-48f4-af98-e108d7a0419d:n8",
+          "from": "n4",
+          "to": "n9",
+          "bends": [
+            {
+              "x": 13.44,
+              "z": -2.81
+            }
+          ],
+          "color": "#2563eb",
+          "diameter": 0.2,
+          "segmentColors": [
+            "#2563eb",
+            "#2563eb"
+          ]
+        }
+      ]
     }
   ]
 };

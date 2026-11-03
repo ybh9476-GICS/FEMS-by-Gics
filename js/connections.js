@@ -223,14 +223,42 @@
     const points=copy(line.points),colors=[...line.segmentColors];let i=1;
     while(i<points.length-1){
       const a=points[i-1],b=points[i],c=points[i+1];
-      const straight=(a.x===b.x&&b.x===c.x)||(a.z===b.z&&b.z===c.z);
+      const straight=(Math.max(a.x,b.x,c.x)-Math.min(a.x,b.x,c.x)<1e-6)||(Math.max(a.z,b.z,c.z)-Math.min(a.z,b.z,c.z)<1e-6);
       const forward=(b.x-a.x)*(c.x-b.x)+(b.z-a.z)*(c.z-b.z)>=0;
-      const duplicate=(a.x===b.x&&a.z===b.z)||(b.x===c.x&&b.z===c.z);
-      // Keep corners, reversals, and both endpoints, including coincident endpoints.
-      if((duplicate||(straight&&forward))&&colors[i-1]===colors[i]){points.splice(i,1);colors.splice(i,1);i=Math.max(1,i-1);}else i++;
+      // A zero-length leg has no visible color: discard that leg's color, not its neighbor's.
+      // Explicit optimization merges color boundaries using the incoming (parent-side) color.
+      // Keep corners, reversals, and both endpoints. Automatic drag cleanup stays color-safe.
+      const removeColor=same(a,b)?i-1:same(b,c)?i:straight&&forward?i:-1;
+      if(removeColor>=0){points.splice(i,1);colors.splice(removeColor,1);i=Math.max(1,i-1);}else i++;
     }
     return points.length===line.points.length?copy(state):storeRoute(state,id,points,colors);
   }
   const api={palette,clean,style,orthogonal,route,routes,setStyle,setSegmentColor,storeRoute,movePoint,moveSegment,finishMove,snapPosition,addPoint,deletePoint,optimize,reset};
-  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FEMSConnections=api;
+  // Editing scope follows equipment ancestry, including networks of nested parents.
+  api.rootEquipmentId=(state,id)=>{
+    const items=new Map(state.equipment.map(e=>[e.id,e])),seen=new Set();
+    while(items.get(id)?.parentId&&!seen.has(id)){seen.add(id);id=items.get(id).parentId;}
+    return items.has(id)?id:null;
+  };
+  api.editScope=(state,id)=>{
+    const lines=api.routes(state),line=lines.find(r=>r.id===id);
+    if(!line)return null;
+    const rootId=api.rootEquipmentId(state,line.parentId);
+    return {rootId,name:state.equipment.find(e=>e.id===rootId)?.name||'',ids:lines.filter(r=>api.rootEquipmentId(state,r.parentId)===rootId).map(r=>r.id)};
+  };
+  api.resetScope=(state,id)=>{
+    const scope=api.editScope(state,id);if(!scope)throw new Error('연결선을 선택하세요.');
+    return scope.ids.reduce((next,edgeId)=>api.reset(next,edgeId),state);
+  };
+  api.isLocked=(line,index)=>line.pointKinds?line.pointKinds[index]==='equipment':index===0||index===line.points.length-1;
+  api.canDeletePoint=(line,index)=>index>0&&index<line.points.length-1;
+  api.installShared=factory=>{
+    const legacy={...api},shared=factory(legacy);
+    for(const name of ['route','routes','setStyle','setSegmentColor','storeRoute','movePoint','moveSegment','finishMove','addPoint','deletePoint','optimize','reset'])api[name]=(state,...args)=>{
+      const document=name==='finishMove'?state?.state:state;
+      return document?.version===2?shared[name](state,...args):legacy[name](state,...args);
+    };
+    Object.assign(api,{enableShared:shared.enableShared,reconcileNetworks:shared.reconcile,validateNetworks:shared.validate,snapCandidates:shared.snapCandidates});
+  };
+  if(typeof module!=='undefined'&&module.exports){module.exports=api;api.installShared(require('./shared-connections.js'));}else root.FEMSConnections=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

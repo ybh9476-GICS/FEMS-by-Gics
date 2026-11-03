@@ -75,20 +75,36 @@ test('최적화할 점이 없으면 자동 경로에 저장 항목이나 실행 
   assert.deepEqual(h.current,state);assert.throws(()=>L.optimize(state,'missing'));
 });
 for(const file of ['vendor/three.js','js/connection-view.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),context);
-test('실제 Three.js 선 지름과 흐름 거리, 평면도에서만 포인트·선분 선택',()=>{
+test('실제 Three.js 선 지름과 흐름 거리, 양쪽 보기 선분과 포인트 선택',()=>{
   const {state,b}=fixture(),T=context.THREE,view=new context.FEMSConnectionView(new T.Scene());view.setState(state);
   const camera=new T.OrthographicCamera(-30,30,20,-20,.1,200);camera.position.set(0,100,0);camera.up.set(0,0,-1);camera.lookAt(0,0,0);camera.updateMatrixWorld();
-  const rect={left:0,top:0,width:600,height:400};view.update(camera,400,'plan',false,null);
+  const rect={left:0,top:0,width:600,height:400};view.update(camera,400,'plan',false,{id:b.id,kind:'segment',index:0});
   const line=view.lines.find(e=>e.id===b.id);assert.equal(line.segments[0].geometry.parameters.radiusTop,.1);
   const p=view.project(line.points[0],line,camera,rect);assert.equal(view.pick({clientX:p.x,clientY:p.y},camera,rect).kind,'point');
   assert.equal(view.pick({clientX:p.x,clientY:p.y},camera,rect).locked,true);
   assert.equal(line.handles[0].dot.material.color.getHex(),0x111111);assert.equal(line.handles.at(-1).dot.material.color.getHex(),0x111111);
   const a=line.points[0],z=line.points[1],mid=view.project({x:(a.x+z.x)/2,z:(a.z+z.z)/2},line,camera,rect);assert.equal(view.pick({clientX:mid.x,clientY:mid.y},camera,rect).kind,'segment');
   const flow=line.segments[0].geometry.attributes.flowDistance;assert.ok(Math.max(...flow.array)>0);assert.equal(view.time.value,1);
-  view.update(camera,400,'3d',false,null);assert.equal(view.pick({clientX:p.x,clientY:p.y},camera,rect),null);assert.ok(line.handles.every(h=>!h.dot.visible));
+  view.update(camera,400,'3d',false,{id:b.id,kind:'point',index:0});assert.equal(view.pick({clientX:p.x,clientY:p.y},camera,rect,{pointsOnly:true}).kind,'point');assert.equal(view.pick({clientX:mid.x,clientY:mid.y},camera,rect).kind,'segment');assert.ok(line.handles.every(h=>h.dot.visible));
   const oldGeometry=line.segments[0].geometry;let disposed=false;oldGeometry.addEventListener('dispose',()=>disposed=true);view.setState(M.reparent(state,b.id,null));assert.equal(disposed,true);
 });
 context.FEMSModel=M;vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/scene.js'),'utf8'),context);
+
+test('3D 원근 시점의 선분 선택과 강조는 확대율을 따르고 포인트·손잡이를 선택하며 후방 요소는 선택하지 않는다',()=>{
+  const {state,b,c}=fixture(),T=context.THREE,view=new context.FEMSConnectionView(new T.Scene());view.setState(M.reparent(state,c.id,null));
+  const rect={left:20,top:50,width:900,height:600},camera=new T.PerspectiveCamera(38,1.5,.1,600);
+  const line=view.lines.find(l=>l.id===b.id),a=line.points[0],z=line.points[1],middle={x:(a.x+z.x)/2,z:(a.z+z.z)/2};
+  for(const scale of [1,2]){
+    camera.position.set(30*scale,40*scale,50*scale);camera.lookAt(0,0,0);camera.updateMatrixWorld();view.update(camera,600,'3d',false,null);
+    const p=view.project(middle,line,camera,rect),event={clientX:p.x,clientY:p.y},hit=view.pick(event,camera,rect);
+    assert.equal(hit.id,b.id);assert.equal(hit.kind,'segment');assert.equal(hit.index,0);assert.equal(view.pick(event,camera,rect,{pointsOnly:true}),null);
+    view.update(camera,600,'3d',false,hit);assert.equal(view.selectedSegment.visible,true);assert.equal(view.segmentHandle.visible,true);assert.ok(line.handles.every(h=>h.dot.visible));
+    const pixel=view.pixelSize(camera,600,view.selectedSegment.position);assert.ok(pixel>0&&pixel<1);assert.ok(view.selectedSegment.children[0].scale.x/pixel<7);
+    const scene=Object.create(context.FEMSScene.prototype);Object.assign(scene,{mode:'3d',connections:view,camera,host:{getBoundingClientRect:()=>rect},pick:()=>null,pickGizmo:()=>null});
+    assert.equal(scene.pickTarget(event).link.id,b.id);scene.pick=()=> 'equipment';assert.equal(scene.pickTarget(event).link.handle,true);assert.equal(scene.pickTarget({...event,altKey:true}).id,'equipment');scene.armed='tower';assert.equal(scene.pickTarget(event).link,undefined);
+  }
+  camera.lookAt(60,80,200);camera.updateMatrixWorld();const p=view.project(middle,line,camera,rect);assert.equal(view.pick({clientX:p.x,clientY:p.y},camera,rect),null);
+});
 test('선분 선택은 해당 구간만 회색 테두리·양 끝으로 강조하고 중복점 인덱스와 보기 전환을 지킨다',()=>{
   const {state,b}=fixture(),T=context.THREE;
   const edited=L.storeRoute(state,b.id,[{x:-15,z:-6},{x:-10,z:-6},{x:-10,z:-6},{x:-10,z:5},{x:-7,z:5}]);
@@ -107,8 +123,8 @@ test('선분 선택은 해당 구간만 회색 테두리·양 끝으로 강조�
   assert.equal(line.handles[0].dot.material,view.lockedPointMaterial);
   view.update(camera,400,'plan',false,selected,selected);assert.equal(view.hoverSegment.visible,false);
   view.update(camera,400,'plan',false,{id:b.id,kind:'segment',index:1});assert.equal(view.selectedSegment.visible,false);
-  for(const [mode,armed] of [['3d',false],['plan',true]]){
-    view.update(camera,400,mode,armed,selected,hover);assert.equal(view.selectedSegment.visible,false);assert.equal(view.hoverSegment.visible,false);
+  for(const [mode,armed] of [['3d',false],['plan',true],['3d',true]]){
+    view.update(camera,400,mode,armed,selected,hover);assert.equal(view.selectedSegment.visible,!armed);assert.equal(view.hoverSegment.visible,!armed);
   }
   view.update(camera,400,'plan',false,null);assert.equal(line.handles[2].border.material,view.pointBorderMaterial);
   assert.equal(line.material.uniforms.color.value.getHex(),0x2563eb);
@@ -116,7 +132,7 @@ test('선분 선택은 해당 구간만 회색 테두리·양 끝으로 강조�
 function editorFixture(locked=false){
   const base=fixture(),b=base.b,state=L.addPoint(base.state,b.id,0).state,T=context.THREE,h=new M.History(state),listeners={},rect={left:0,top:0,width:600,height:400};
   const camera=new T.OrthographicCamera(-30,30,20,-20,.1,200);camera.position.set(0,100,0);camera.up.set(0,0,-1);camera.lookAt(0,0,0);camera.updateMatrixWorld();
-  const view=new context.FEMSConnectionView(new T.Scene());view.setState(state);view.update(camera,400,'plan',false,null);
+  const view=new context.FEMSConnectionView(new T.Scene());view.setState(state);view.update(camera,400,'plan',false,{id:b.id,kind:'point',index:1});
   const scene=Object.create(context.FEMSScene.prototype);let baseline,selection;
   Object.assign(scene,{state:h.current,mode:'plan',camera,connections:view,host:{style:{},getBoundingClientRect:()=>rect},ray:new T.Raycaster(),pointer:new T.Vector2(),floorPlane:new T.Plane(new T.Vector3(0,1,0),0),ghost:{},models:new Map(),footprints:new Map(),handlers:{
     connectionSelect(hit){selection=hit;scene.connectionSelection=hit;},connectionStart(){baseline=M.clone(h.current);},
@@ -130,6 +146,30 @@ function editorFixture(locked=false){
 }
 test('평면도 실제 포인터 경로로 중간점 드래그를 한 번의 실행 취소로 복원한다',()=>{
   const {h,state,listeners,event}=editorFixture();listeners.pointerdown(event());listeners.pointermove(event(30,20));listeners.pointermove(event(40,20));assert.notDeepEqual(h.current,state);listeners.pointerup(event(40,20));assert.equal(h.past.length,1);h.undo();assert.deepEqual(h.current,state);
+});
+
+test('3D 포인트 드래그는 원근 투영 위치를 따라가고 스냅 거리는 유한하며 카메라·고정점을 보존한다',()=>{
+  const T=context.THREE;
+  for(const commit of [true,false])for(const scale of [1,2]){
+    const {scene,listeners,h,state}=editorFixture(),view=scene.connections,rect=scene.host.getBoundingClientRect();
+    scene.mode='3d';scene.camera=new T.PerspectiveCamera(38,rect.width/rect.height,.1,600);
+    scene.camera.position.set(30*scale,40*scale,50*scale);scene.camera.lookAt(0,0,0);scene.camera.updateMatrixWorld();
+    view.update(scene.camera,rect.height,'3d',false,{id:view.lines[0].id,kind:'point',index:1});
+    const line=view.lines[0],source=line.handles[1].border.position,p=view.project(source,line,scene.camera,rect);
+    const destination={x:source.x+2,y:source.y,z:source.z+3},q=view.project(destination,line,scene.camera,rect);
+    const event=p=>({button:0,pointerId:1,clientX:p.x,clientY:p.y,preventDefault(){}});
+    const cameraPosition=scene.camera.position.clone(),cameraRotation=scene.camera.quaternion.clone();
+    const preview=scene.handlers.connectionPreview;let tolerance;
+    scene.handlers.connectionPreview=(pos,options)=>{tolerance=options.tolerance;preview(pos);};
+    listeners.pointerdown(event(p));assert.equal(scene.drag.connection.kind,'point');
+    listeners.pointermove(event(q));assert.ok(Number.isFinite(tolerance)&&tolerance>0);
+    const moved=L.route(h.current,line.id).points;assert.ok(moved.some(v=>Math.abs(v.x-destination.x)<1e-6&&Math.abs(v.z-destination.z)<1e-6));
+    assert.deepEqual(moved[0],line.points[0]);assert.deepEqual(moved.at(-1),line.points.at(-1));orthogonal(moved);
+    assert.ok(scene.camera.position.equals(cameraPosition));assert.ok(scene.camera.quaternion.equals(cameraRotation));
+    listeners.pointermove({...event(q),shiftKey:true});assert.equal(tolerance,0);
+    if(commit){listeners.pointerup(event(q));assert.equal(h.past.length,1);h.undo();}else scene.cancelDrag();
+    assert.deepEqual(h.current,state);
+  }
 });
 test('포인트 드래그 취소와 포인터 캡처 유실은 원래 연결선으로 복원한다',()=>{
   for(const cancel of ['pointercancel','lostpointercapture']){const {h,state,listeners,event}=editorFixture();listeners.pointerdown(event());listeners.pointermove(event(30,20));listeners[cancel]();assert.deepEqual(h.current,state);assert.equal(h.past.length,0);}
@@ -216,7 +256,7 @@ test('자동 정리는 이번에 생성한 중복·직선 포인트만 제거하
   assert.deepEqual(L.finishMove({...result,index:2},b.id).state,result.state);
 });
 
-test('선택 선분 네모 손잡이는 줌과 무관하게 선택되며 3D와 배치 모드에서는 숨는다',()=>{
+test('선택 선분 네모 손잡이는 줌과 무관하게 선택되며 두 보기에서 표시하고 배치 모드에서는 숨는다',()=>{
   const {state,b}=fixture(),T=context.THREE,view=new context.FEMSConnectionView(new T.Scene());view.setState(state);
   const camera=new T.OrthographicCamera(-30,30,20,-20,.1,200);camera.position.set(0,100,0);camera.up.set(0,0,-1);camera.lookAt(0,0,0);camera.updateMatrixWorld();
   const rect={left:0,top:0,width:600,height:400},selection={id:b.id,kind:'segment',index:0};
@@ -227,7 +267,7 @@ test('선택 선분 네모 손잡이는 줌과 무관하게 선택되며 3D와 �
     assert.equal(view.pickHandle({clientX:p.x+6,clientY:p.y},camera,rect).handle,true);
     assert.equal(view.pickHandle({clientX:p.x+8,clientY:p.y},camera,rect),null);
   }
-  for(const [mode,armed] of [['3d',false],['plan',true]]){view.update(camera,400,mode,armed,selection);assert.equal(view.segmentHandle.visible,false);assert.equal(view.guides[0].visible,false);}
+  for(const [mode,armed] of [['3d',true],['plan',true]]){view.update(camera,400,mode,armed,selection);assert.equal(view.segmentHandle.visible,false);assert.equal(view.guides[0].visible,false);}
 });
 
 test('작은 설비 안 흰색 포인트는 선택·드래그되고 Alt 클릭은 설비를 선택한다',()=>{
@@ -256,11 +296,11 @@ test('흰색 포인트 클릭 반경은 확대율과 무관한 6px이며 미리 
   const {scene,event,state,listeners}=editorFixture(),rect=scene.host.getBoundingClientRect();
   const view=scene.connections,line=view.lines[0],id=state.equipment[0].id;
   for(const zoom of [.5,1,3]){
-    scene.camera.zoom=zoom;scene.camera.updateProjectionMatrix();view.update(scene.camera,400,'plan',false,null);
+    scene.camera.zoom=zoom;scene.camera.updateProjectionMatrix();view.update(scene.camera,400,'plan',false,{id:line.id,kind:'segment',index:0});
     const p=view.project(line.points[1],line,scene.camera,rect),options={pointsOnly:true,movableOnly:true};
     assert.ok(view.pick({clientX:p.x+5.9,clientY:p.y},scene.camera,rect,options));
     assert.equal(view.pick({clientX:p.x+6.1,clientY:p.y},scene.camera,rect,options),null);
-    const hit={id:line.id,kind:'point',index:1};view.update(scene.camera,400,'plan',false,null,hit);
+    const hit={id:line.id,kind:'point',index:1};view.update(scene.camera,400,'plan',false,{id:line.id,kind:'point',index:0},hit);
     assert.equal(line.handles[1].border.material,view.hoverPointMaterial);
     assert.ok(Math.abs(line.handles[1].border.scale.x-.6/zoom)<1e-8);
   }

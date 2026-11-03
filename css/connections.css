@@ -8,9 +8,10 @@
 #connection-corner[aria-pressed=true] { color: #087766; border-color: #0d9488; background: #e7f5ef; }
 #connection-edit-hint { font-size: 10px; line-height: 1.6; margin-top: 10px; }
 #connection-selection { padding: 8px 0; color: #346b60; }
-#connection-reset-dialog { width: min(420px, calc(100vw - 32px)); padding: 24px; border: 1px solid #dce6e1; border-radius: 12px; color: #365e51; box-shadow: 0 16px 50px #183b3833; }
-#connection-reset-dialog::backdrop { background: #183b3855; }
-#connection-reset-description { margin: 16px 0 24px; font-size: 12px; line-height: 1.8; color: #62786e; }
+#connection-reset-dialog, #connection-optimize-dialog { width: min(420px, calc(100vw - 32px)); padding: 24px; border: 1px solid #dce6e1; border-radius: 12px; color: #365e51; box-shadow: 0 16px 50px #183b3833; }
+#connection-reset-dialog::backdrop, #connection-optimize-dialog::backdrop { background: #183b3855; }
+.dialog-message { display: grid; gap: 10px; margin: 18px 0 24px; padding-left: 18px; font-size: 13px; line-height: 1.6; color: #526b61; word-break: keep-all; overflow-wrap: anywhere; }
+.dialog-message strong { color: #9b4c2d; font-weight: 600; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 #default-dialog { width: min(560px, calc(100vw - 32px)); padding: 24px; border: 1px solid #dce6e1; border-radius: 12px; color: #365e51; }
 #default-dialog::backdrop { background: #183b3855; }

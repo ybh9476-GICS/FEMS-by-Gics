@@ -8,9 +8,8 @@ function boot(read){
   vm.runInNewContext(app.slice(0,app.indexOf('  const history='))+'window.result={initial,autosaveAllowed,startupMessage};})();',context);
   return JSON.parse(JSON.stringify(context.window.result));
 }
-test('현재 공유 도면은 설비 10개·연결선 5개와 편집 포인트를 포함하고 v1 저장 검증을 통과한다',()=>{
-  const state=bundled();assert.deepEqual(M.validate(state),state);assert.equal(state.equipment.length,10);
-  assert.equal(state.equipment.filter(e=>e.parentId).length,5);assert.ok(state.equipment.some(e=>e.connection?.bends?.length));
+test('교체 가능한 기본 도면은 저장 검증과 직렬화 왕복에서 모든 설비·경로를 보존한다',()=>{
+  const state=bundled();assert.deepEqual(M.validate(state),state);
   const context={window:{}};vm.runInNewContext(D.serialize(state),context);assert.deepEqual(JSON.parse(JSON.stringify(context.window.FEMSDefaultLayout)),state);
 });
 test('처음 방문하면 공유 도면을 복제해 열고 편집해도 기본 원본은 변하지 않는다',()=>{

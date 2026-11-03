@@ -14,32 +14,60 @@
       $('connection-properties').addEventListener('keydown',event=>{if(event.key==='Escape'&&this.numeric){event.preventDefault();event.stopPropagation();this.finishNumeric(false);}});
       root.addEventListener('blur',()=>{if(!document.body.dataset.numberScrubbing)this.finishNumeric(true);});
       $('connection-add').addEventListener('click',()=>this.add());
-      $('connection-corner').addEventListener('click',()=>{this.finishNumeric(true);this.corner=!this.corner;this.api.guides({},this.corner);this.render('plan');});
+      $('connection-corner').addEventListener('click',()=>{this.finishNumeric(true);this.corner=!this.corner;this.api.guides({},this.corner);this.render(this.view||'plan');});
       $('connection-delete').addEventListener('click',()=>this.remove());
-      $('connection-optimize').addEventListener('click',()=>this.apply(()=>{const next=L.optimize(this.api.state(),this.selection.id);this.selection={id:this.selection.id,kind:'segment',index:0};return next;}));
+      const optimizeDialog=$('connection-optimize-dialog');
+      $('connection-optimize').addEventListener('click',()=>{
+        if(!this.selection)return;
+        this.finishNumeric(true);
+        const state=this.api.state(),line=L.route(state,this.selection.id);if(!line)return;
+        this.optimizeId=line.id;
+        const parent=state.equipment.find(e=>e.id===line.parentId),child=state.equipment.find(e=>e.id===line.id);
+        $('connection-optimize-target').textContent=`대상 구간: ${line.label||`${parent.name} → ${child.name}`}`;
+        optimizeDialog.returnValue='';optimizeDialog.showModal();
+      });
+      optimizeDialog.addEventListener('keydown',event=>event.stopPropagation());
+      optimizeDialog.addEventListener('close',()=>{
+        const id=this.optimizeId;this.optimizeId=null;
+        if(optimizeDialog.returnValue==='optimize'&&this.selection?.id===id)this.optimize();
+      });
       const dialog=$('connection-reset-dialog');
       $('connection-reset').addEventListener('click',()=>{
         if(!this.selection)return;
-        this.finishNumeric(true);this.resetId=this.selection.id;dialog.returnValue='';dialog.showModal();
+        this.finishNumeric(true);this.resetId=this.selection.id;
+        const scope=L.editScope(this.api.state(),this.resetId);if(!scope)return;
+        $('connection-reset-target').textContent=`대상: ${scope.name} 연결망 전체`;
+        dialog.returnValue='';dialog.showModal();
       });
       // Modal keyboard actions must not trigger editor shortcuts behind the popup.
       dialog.addEventListener('keydown',event=>event.stopPropagation());
       dialog.addEventListener('close',()=>{
         const id=this.resetId;this.resetId=null;
         if(dialog.returnValue==='restore'&&this.selection?.id===id)this.apply(()=>{
-          const next=L.reset(this.api.state(),id);this.selection={id,kind:'segment',index:0};return next;
+          const next=L.resetScope(this.api.state(),id);this.selection={id,kind:'segment',index:0};return next;
         });
       });
     }
-    select(selection){this.finishNumeric(true);this.finish(true);if(this.selection?.id!==selection.id||this.selection?.index!==selection.index||selection.kind!=='segment')this.cancelCorner();this.selection=selection;}
+    select(selection){$('connection-feedback').textContent='';this.finishNumeric(true);this.finish(true);if(this.selection?.id!==selection.id||this.selection?.index!==selection.index||selection.kind!=='segment')this.cancelCorner();this.selection=selection;}
     cancelCorner(){this.corner=false;this.api.guides({},false);}
-    clear(){this.finishNumeric(true);this.finish(true);this.cancelCorner();this.selection=null;}
+    clear(){$('connection-feedback').textContent='';this.finishNumeric(true);this.finish(true);this.cancelCorner();this.selection=null;}
     apply(build){
       if(!this.selection)return;
       this.finishNumeric(true);
       this.cancelCorner();
-      try{this.api.commit(build());$('connection-error').textContent='';}
-      catch(error){$('connection-error').textContent=error.message;}
+      $('connection-feedback').textContent='';
+      try{this.api.commit(build());$('connection-error').textContent='';return true;}
+      catch(error){$('connection-error').textContent=error.message;return false;}
+    }
+    optimize(){
+      let removed=0;
+      const applied=this.apply(()=>{
+        const state=this.api.state(),id=this.selection.id,before=L.route(state,id),next=L.optimize(state,id);
+        removed=before.points.length-L.route(next,id).points.length;
+        if(removed)this.selection={id,kind:'segment',index:0};
+        return next;
+      });
+      if(applied)$('connection-feedback').textContent=removed?`불필요한 포인트 ${removed}개를 제거했습니다.`:'정리할 포인트가 없습니다. 코너·분기점과 되돌아가는 경로는 유지됩니다.';
     }
     changeStyle(changes){
       if(changes.color){if(this.selection?.kind!=='segment')return;this.apply(()=>L.setSegmentColor(this.api.state(),this.selection.id,this.selection.index,changes.color));}
@@ -47,6 +75,7 @@
     }
     previewNumeric(input){
       if(!this.selection)return;
+      $('connection-feedback').textContent='';
       if(this.numeric?.input!==input)this.finishNumeric(true);
       if(!this.numeric)this.numeric={input,state:JSON.parse(JSON.stringify(this.api.state())),selection:{...this.selection}};
       try{
@@ -75,7 +104,8 @@
         const axes=isPoint?['x','z']:[line.points[selection.index].z===line.points[selection.index+1].z?'z':'x'];
         // Quantize free dragging before snapping, so alignment to fractional corners stays exact.
         const rounded={x:Math.round(position.x*100)/100,z:Math.round(position.z*100)/100};
-        const snapped=L.snapPosition(line.points,isPoint?[selection.index]:[selection.index,selection.index+1],rounded,options.tolerance,this.edit.snap,axes);
+        const extra=state.version===2?L.snapCandidates(state,selection.id).filter(p=>!line.points.some(q=>Math.abs(q.x-p.x)<1e-6&&Math.abs(q.z-p.z)<1e-6)):[];
+        const snapped=L.snapPosition([...line.points,...extra],isPoint?[selection.index]:[selection.index,selection.index+1],rounded,options.tolerance,this.edit.snap,axes);
         this.edit.snap=snapped.guides;
         const result=isPoint?L.movePoint(state,selection.id,selection.index,snapped.position):L.moveSegment(state,selection.id,selection.index,snapped.position,{corner});
         this.edit.result=result;this.selection={...selection,index:result.index};this.api.guides(snapped.guides,corner);this.api.preview(result.state);$('connection-error').textContent='';
@@ -90,20 +120,23 @@
       this.api.finish(commit);
     }
     render(view){
+      this.view=view;
       const state=this.api.state(),line=this.selection?L.route(state,this.selection.id):null;
       if(!line)this.selection=null;
-      const visible=view==='plan'&&!!line;$('connection-properties').hidden=!visible;
+      const visible=(view==='plan'||view==='3d')&&!!line;$('connection-properties').hidden=!visible;
       $('inspector-title').textContent=visible?'연결선 속성':'설비 속성';
       if(!visible)return false;
       $('properties').hidden=true;$('inspector-empty').hidden=true;
+      for(const action of ['corner','add','delete','optimize','reset'])$('connection-'+action).hidden=false;
       const parent=state.equipment.find(e=>e.id===line.parentId),child=state.equipment.find(e=>e.id===line.id);
-      $('connection-title').textContent=`${parent.name} → ${child.name}`;
+      $('connection-scope').textContent=`편집 대상: ${L.editScope(state,line.id).name} 연결망 전체`;
+      $('connection-title').textContent=line.label||`${parent.name} → ${child.name}`;
       if(document.activeElement!==$('connection-diameter'))$('connection-diameter').value=line.diameter;
       const selectedColor=this.selection.kind==='segment'?line.segmentColors[this.selection.index]:null;
       for(const button of $('connection-palette').children){button.disabled=!selectedColor;button.setAttribute('aria-pressed',String(button.dataset.color===selectedColor));}
       const point=this.selection.kind==='point'?line.points[this.selection.index]:null;
-      const locked=!!point&&(this.selection.index===0||this.selection.index===line.points.length-1);
-      $('connection-selection').textContent=point?`포인트 ${this.selection.index+1} / ${line.points.length}${locked?' · 설비 고정점 (이동·삭제 불가)':''}`:`선분 ${this.selection.index+1} · 부모 → 자식`;
+      const locked=!!point&&L.isLocked(line,this.selection.index),junction=!!point&&line.pointKinds?.[this.selection.index]==='junction';
+      $('connection-selection').textContent=point?junction?'공유 분기점 · 연결된 가지와 함께 이동':`포인트 ${this.selection.index+1} / ${line.points.length}${locked?' · 설비 고정점 (이동·삭제 불가)':''}`:`선분 ${this.selection.index+1} · 부모 → 자식`;
       $('connection-point-fields').hidden=!point;
       for(const axis of ['x','z'])$('connection-'+axis).disabled=locked;
       if(point)for(const axis of ['x','z'])if(document.activeElement!==$('connection-'+axis))$('connection-'+axis).value=point[axis];
@@ -111,8 +144,8 @@
       $('connection-corner').disabled=$('connection-add').disabled;
       $('connection-corner').setAttribute('aria-pressed',String(!!this.corner));
       $('connection-corner').textContent=this.corner?'코너 추가 취소':'코너 추가';
-      $('connection-edit-hint').textContent=this.corner?'초록 네모를 드래그해 꺾임을 만드세요. Esc: 취소':point?'흰색 포인트 드래그: 이동 · Shift: 정렬 해제':'중앙 네모 드래그: 선분 이동 · Shift: 정렬 해제';
-      $('connection-delete').disabled=!point||locked;
+      $('connection-edit-hint').textContent=this.corner?'초록 네모를 드래그해 꺾임을 만드세요. Esc: 취소':point?'흰색 포인트 드래그: X·Z 이동 · Shift: 정렬 해제':'중앙 네모 드래그: 선분 이동 · Shift: 정렬 해제';
+      $('connection-delete').disabled=!point||!L.canDeletePoint(line,this.selection.index);
       return true;
     }
   }
