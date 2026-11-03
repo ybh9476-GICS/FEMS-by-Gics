@@ -1,0 +1,36 @@
+.catalog-panel { min-width: 0; }
+.catalog-panel .panel-hint { line-height: 1.7; padding-bottom: 14px; }
+.tree-scroll { flex: 1; min-height: 0; overflow: auto; padding: 12px 10px 16px; }
+#equipment-tree, #equipment-tree ul { list-style: none; margin: 0; padding: 0; }
+#equipment-tree ul { margin-left: 16px; padding-left: 8px; border-left: 1px solid #dce6e0; }
+#equipment-tree > li { margin-bottom: 1px; }
+#equipment-tree li { outline-offset: -2px; border-radius: 6px; }
+.tree-row { display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 1px 8px 1px 3px; border: 1px solid transparent; border-radius: 6px; cursor: grab; user-select: none; touch-action: none; }
+.tree-row:hover { background: #f3f7f5; }
+[role=treeitem][aria-selected=true] > .tree-row { background: #eaf5ef; border-color: #b4d1c1; }
+.tree-toggle { border: 0; background: transparent; padding: 3px; width: 19px; flex: 0 0 19px; color: #82958b; }
+.tree-toggle:disabled { opacity: .4; }
+.tree-marker { width: 6px; height: 16px; border-radius: 4px; flex: 0 0 6px; opacity: .8; }
+.tree-name { min-width: 0; flex: 1; }
+.tree-name strong { display: block; color: #486354; font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tree-count { font-size: 9px; color: #648474; background: #e7efea; padding: 2px 5px; border-radius: 4px; }
+.tree-row.drag-source { opacity: .45; }
+.tree-row.drop-target { border: 1px solid #227b69; background: #d9efe3; box-shadow: inset 0 0 0 1px #227b69; }
+.tree-row.drop-invalid { border: 1px solid #c66d59; background: #fff0e9; cursor: not-allowed; }
+.tree-insert-line { position: fixed; height: 2px; background: #227b69; z-index: 40; pointer-events: none; }
+.tree-insert-line::before { content: ''; position: absolute; left: -3px; top: -2px; width: 6px; height: 6px; border-radius: 50%; background: inherit; }
+.tree-insert-line.invalid { background: #c66d59; }
+.tree-empty { padding: 20px 10px; font-size: 11px; line-height: 1.8; color: #91a197; text-align: center; }
+.equipment-dock { flex-shrink: 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 14px 12px; border-top: 1px solid #dce6e1; background: #f9fcfa; }
+.dock-caption { font-size: 9px; color: #8ca195; letter-spacing: 1px; }
+.scene-controls { justify-content: flex-end; }
+.thumbnail-strip { display: flex; align-items: center; gap: 6px; max-width: 100%; overflow-x: auto; padding: 4px; scrollbar-width: thin; }
+.equipment-thumbnail { flex: 0 0 62px; width: 62px; height: 54px; padding: 0; display: grid; place-items: center; background: linear-gradient(#fff,#edf3ef); border: 1px solid #e1e9e3; border-radius: 8px; }
+.equipment-thumbnail img { width: 60px; height: 48px; object-fit: contain; pointer-events: none; }
+.equipment-thumbnail:hover, .equipment-thumbnail[aria-pressed=true] { border-color: #69a48a; background: #e1f2e8; box-shadow: 0 2px 5px #346b4720; }
+.equipment-thumbnail .equipment-icon { width: 38px; height: 38px; }
+#catalog-tooltip { position: fixed; z-index: 30; pointer-events: none; transform: translate(-50%,-100%); background: #244c40; color: #fff; border-radius: 7px; padding: 9px 13px; box-shadow: 0 5px 15px #1f413633; max-width: calc(100vw - 20px); text-align: center; }
+#catalog-tooltip strong { display: block; font-size: 12px; font-weight: 600; }
+#catalog-tooltip span { display: block; color: #b8d4c4; font-size: 10px; margin-top: 4px; }
+@media(max-width:1150px) { .equipment-dock { padding-inline: 6px; }.equipment-thumbnail { flex-basis: 54px; width: 54px; }.equipment-thumbnail img { width: 52px; }.tree-row { gap: 5px; }.tree-scroll { padding-inline: 6px; } }
+@media(max-width:760px) { .workspace { grid-template-columns: 132px minmax(0,1fr); }.tree-name strong { font-size: 10px; }.tree-row { padding-right: 3px; gap: 4px; }.tree-marker { display: none; }.tree-toggle { flex-basis: 15px; width: 15px; }.tree-scroll { padding-inline: 3px; }.catalog-panel .panel-hint { padding: 10px; font-size: 9px; }.catalog-panel .library-foot { font-size: 8px; }.equipment-dock { padding: 7px 4px; }.thumbnail-strip { gap: 4px; }.equipment-thumbnail { flex-basis: 48px; width: 48px; height: 46px; }.equipment-thumbnail img { width: 46px; height: 42px; } }

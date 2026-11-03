@@ -1,0 +1,10 @@
+{
+  "name": "fems-by-gics",
+  "version": "0.1.0",
+  "private": true,
+  "description": "독립 실행하는 FEMS 설비 배치 에디터",
+  "scripts": {
+    "dev": "node scripts/local-server.cjs",
+    "test": "node --test tests/*.test.cjs"
+  }
+}

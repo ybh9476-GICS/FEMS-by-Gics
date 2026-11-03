@@ -1,0 +1,47 @@
+.number-control {
+  position: relative;
+  display: block;
+  min-width: 0;
+  flex: 1;
+  margin: 7px 0 0;
+}
+#properties .number-control input {
+  margin: 0;
+  padding-right: 27px;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.number-control input::-webkit-inner-spin-button,
+.number-control input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.number-scrub {
+  position: absolute;
+  inset: 1px 1px 1px auto;
+  width: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid #dce4e5;
+  border-radius: 0 4px 4px 0;
+  background: #f3f6f7;
+  color: #71878b;
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+}
+.number-scrub:hover { background: #e6f2ec; color: #227b69; }
+.live-edit-note { font-size: 10px; color: #558875; margin: 0 0 12px; line-height: 1.7; }
+.ratio-lock { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; color: #4d6559; cursor: pointer; }
+.ratio-lock input { width: 14px; height: 14px; margin: 0; padding: 0; accent-color: #227b69; cursor: pointer; }
+.gizmo-axis-label { position: absolute; transform: translate(-50%, -50%); font-size: 12px; font-weight: 700; background: #ffffffeb; border: 1px solid currentColor; border-radius: 4px; padding: 2px 5px; pointer-events: none; }
+.gizmo-rotate { position: absolute; z-index: 2; padding: 6px 10px; border: 1px solid #79a890; border-radius: 16px; color: #246546; background: #f7fff9; box-shadow: 0 2px 7px #263e3620; font-size: 12px; font-weight: 600; cursor: pointer; }
+.gizmo-rotate:hover { background: #dff3e5; }
+.gizmo-rotate:focus-visible { outline: 2px solid #246546; outline-offset: 3px; }
+#properties input[aria-invalid="true"] { border-color: #bd6957; }
+.number-scrub svg { width: 12px; height: 12px; pointer-events: none; }
+.number-control input:disabled + .number-scrub,
+.number-control input[readonly] + .number-scrub { pointer-events: none; opacity: .4; }
+body[data-number-scrubbing="true"],
+body[data-number-scrubbing="true"] * { cursor: ew-resize !important; user-select: none !important; }
