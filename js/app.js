@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   const C=window.FEMSCatalog, M=window.FEMSModel, $=id=>document.getElementById(id);
-  let initial=M.demo(), startupMessage='', autosaveAllowed=true, storageFailed=false;
+  let initial=window.FEMSDefaults.seed(window.FEMSDefaultLayout), startupMessage='', autosaveAllowed=true, storageFailed=false;
   try {const saved=localStorage.getItem(M.STORAGE_KEY);if(saved)initial=M.validate(JSON.parse(saved));}
   catch(error){autosaveAllowed=false;startupMessage='이전 작업을 읽지 못했습니다. 원본 보존을 위해 자동 저장을 중지했습니다. 파일 열기·도면 저장은 사용할 수 있습니다.';}
   const history=new M.History(initial);let selected=null,armed=null,view='3d',scene=null,tree=null,links=null,toastTimer;
@@ -155,6 +155,17 @@
   $('properties').addEventListener('submit',event=>{event.preventDefault();if(!selected)return;const next=M.clone(history.current),item=next.equipment.find(e=>e.id===selected);for(const key of ['name','code','x','z','rotation','width','depth','height']){const value=$('properties').elements.namedItem(key).value;item[key]=['name','code'].includes(key)?value.trim():Number(value);}
     try{M.validate(next);commit(next,'설비 속성을 적용했습니다.');}catch(error){$('property-error').textContent=error.message;}});
   $('new').addEventListener('click',()=>{arm(null);commit(M.empty(),'빈 도면을 만들었습니다. 실행 취소로 이전 배치를 복원할 수 있습니다.');scene?.fit();});
+  let defaultExportUrl=null;
+  $('export-default').addEventListener('click',()=>{
+    finishNumeric();links?.finishNumeric(true);
+    const contents=window.FEMSDefaults.serialize(history.current);
+    $('default-source').value=contents;$('default-summary').textContent=`${history.current.name} · 설비 ${history.current.equipment.length}개 · 연결선 ${window.FEMSConnections.routes(history.current).length}개`;
+    if(defaultExportUrl)URL.revokeObjectURL(defaultExportUrl);
+    defaultExportUrl=URL.createObjectURL(new Blob([contents],{type:'text/javascript;charset=utf-8'}));$('default-download').href=defaultExportUrl;$('default-dialog').showModal();
+  });
+  $('default-close').addEventListener('click',()=>$('default-dialog').close());
+  $('default-dialog').addEventListener('keydown',event=>event.stopPropagation());
+  $('default-dialog').addEventListener('close',()=>{if(defaultExportUrl)URL.revokeObjectURL(defaultExportUrl);defaultExportUrl=null;});
   $('save').addEventListener('click',async()=>{
     try{await window.FEMSFiles.save(history.current,window.showSaveFilePicker?.bind(window));toast('선택한 파일에 도면을 저장했습니다.');}
     catch(error){if(error.name==='AbortError')toast('파일 저장을 취소했습니다.');else toast('파일을 저장하지 못했습니다: '+error.message);}

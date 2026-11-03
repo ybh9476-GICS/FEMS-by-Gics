@@ -14,6 +14,8 @@
   <script defer src="js/catalog.js"></script>
   <script defer src="js/connections.js"></script>
   <script defer src="js/model.js"></script>
+  <script defer src="js/default-layout.js"></script>
+  <script defer src="js/defaults.js"></script>
   <script defer src="js/files.js"></script>
   <script defer src="js/equipment-3d.js"></script>
   <script defer src="js/equipment-thumbnails.js"></script>
@@ -29,7 +31,7 @@
   <header class="topbar">
     <div class="brand"><span class="brand-mark">F</span><div><strong>FEMS <span>by Gics</span></strong><small>FACTORY ENERGY MANAGEMENT</small></div></div>
     <div class="project-title"><span class="project-dot"></span><span id="project-name">설비 배치도</span><span class="local-tag">LOCAL</span></div>
-    <div class="file-actions"><button id="new" class="quiet">새 도면</button><button id="open" class="quiet">열기</button><button id="save" class="primary">↓ 도면 저장</button><input id="file" type="file" accept=".fems,application/json" hidden></div>
+    <div class="file-actions"><button id="new" class="quiet">새 도면</button><button id="open" class="quiet">열기</button><button id="export-default" class="quiet">기본 도면</button><button id="save" class="primary">↓ 도면 저장</button><input id="file" type="file" accept=".fems,application/json" hidden></div>
   </header>
   <main class="workspace">
     <aside class="catalog-panel" aria-label="배치된 설비 계층">
@@ -85,6 +87,14 @@
     </aside>
   </main>
   <div id="toast" role="status" aria-live="polite" hidden></div>
+  <dialog id="default-dialog" aria-labelledby="default-title">
+    <h2 id="default-title">현재 도면을 기본 도면으로 공유</h2>
+    <p id="default-summary"></p>
+    <p>내려받은 파일을 프로젝트의 <code>js/default-layout.js</code>에 넣고 푸시하면, 처음 방문하는 환경에서 이 도면이 열립니다. 기존 브라우저의 저장된 작업은 유지됩니다.</p>
+    <p>편집 후 다시 공유하려면 새 파일을 내보내세요. GitHub에 자동 업로드되지는 않습니다.</p>
+    <details><summary>내보낼 데이터 보기</summary><textarea id="default-source" readonly aria-label="기본 도면 파일 내용" spellcheck="false"></textarea></details>
+    <div class="dialog-actions"><button id="default-close" type="button">닫기</button><a id="default-download" download="default-layout.js">기본 도면 내려받기</a></div>
+  </dialog>
   <dialog id="connection-reset-dialog" aria-labelledby="connection-reset-title" aria-describedby="connection-reset-description">
     <form method="dialog">
       <h2 id="connection-reset-title">최단 경로로 복원할까요?</h2>

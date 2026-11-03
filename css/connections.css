@@ -13,4 +13,10 @@
 #connection-reset-dialog::backdrop { background: #183b3855; }
 #connection-reset-description { margin: 16px 0 24px; font-size: 12px; line-height: 1.8; color: #62786e; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+#default-dialog { width: min(560px, calc(100vw - 32px)); padding: 24px; border: 1px solid #dce6e1; border-radius: 12px; color: #365e51; }
+#default-dialog::backdrop { background: #183b3855; }
+#default-dialog p { margin-top: 16px; font-size: 12px; line-height: 1.8; }
+#default-dialog details { margin: 16px 0; font-size: 12px; }
+#default-source { width: 100%; height: 180px; margin-top: 10px; font: 11px monospace; resize: vertical; }
+#default-download { display: inline-block; background: #227b69; color: white; text-decoration: none; border-radius: 6px; padding: 8px 11px; }
 @media(max-width:1150px) { #connection-properties { padding: 16px; } }
