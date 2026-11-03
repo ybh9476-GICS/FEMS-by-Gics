@@ -1,5 +1,4 @@
 #connection-properties { padding: 18px 20px; }
-#connection-properties h3 { font-size: 14px; color: #365e51; }
 #connection-properties > label { margin-bottom: 20px; }
 #connection-palette { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; }
 #connection-palette button { min-width: 0; padding: 0; height: 28px; border: 3px solid transparent; background: var(--swatch); }

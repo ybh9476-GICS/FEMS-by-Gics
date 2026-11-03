@@ -28,7 +28,7 @@
       this.guides=['x','z'].map(()=>{const geometry=new T.BufferGeometry().setFromPoints([new T.Vector3(),new T.Vector3()]);const line=new T.Line(geometry,new T.LineDashedMaterial({color:'#0d9488',dashSize:.3,gapSize:.2,depthTest:false,depthWrite:false}));line.renderOrder=9;line.visible=false;this.emphasis.add(line);return line;});
     }
     clear(){
-      for(const line of this.lines){for(const mesh of line.segments)mesh.geometry.dispose();line.material.dispose();}
+      for(const line of this.lines){for(const mesh of line.segments){mesh.geometry.dispose();mesh.material.dispose();}line.material.dispose();}
       this.group.clear();this.lines=[];
       this.hoverSegment.visible=this.selectedSegment.visible=false;
       this.segmentHandle.visible=false;
@@ -49,7 +49,9 @@
           const positions=geometry.attributes.position,flow=new Float32Array(positions.count);
           for(let j=0;j<positions.count;j++)flow[j]=distance+positions.getY(j)+length/2;
           geometry.setAttribute('flowDistance',new T.BufferAttribute(flow,1));
-          const mesh=new T.Mesh(geometry,material);mesh.position.set((a.x+b.x)/2,line.height,(a.z+b.z)/2);
+          const segmentMaterial=material.clone();segmentMaterial.uniforms.time=this.time;
+          segmentMaterial.uniforms.color.value.set(route.segmentColors[i]);
+          const mesh=new T.Mesh(geometry,segmentMaterial);mesh.position.set((a.x+b.x)/2,line.height,(a.z+b.z)/2);
           mesh.userData.segmentIndex=i;
           mesh.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),new T.Vector3(b.x-a.x,0,b.z-a.z).normalize());
           this.group.add(mesh);line.segments.push(mesh);distance+=length;

@@ -2,6 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),http=require('node:http');
 const {createServer}=require('../scripts/local-server.cjs');
 const M=require('../js/model.js'),D=require('../js/defaults.js');
+const L=require('../js/connections.js');
 
 test('기본 도면 저장은 동일 출처의 검증된 데이터만 고정 파일에 원자적으로 기록한다',async()=>{
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'fems-default-'));
@@ -18,7 +19,8 @@ test('기본 도면 저장은 동일 출처의 검증된 데이터만 고정 파
     });
   }
   try{
-    const state=M.demo(),body=JSON.stringify(state);
+    const demo=M.demo(),parent=demo.equipment[0],child=demo.equipment[1];
+    const state=L.setSegmentColor(M.reparent(demo,child.id,parent.id),child.id,0,'#dc2626'),body=JSON.stringify(state);
     for(const [headers,status] of [[{Origin:'https://example.com'},403],[{Origin:'null'},403],[{Origin:''},403],[{'Sec-Fetch-Site':'cross-site'},403],[{'Content-Type':'text/plain'},415],[{Host:'example.com'},403],[{Host:'127.0.0.1:1',Origin:'http://127.0.0.1:1'},403]]){
       assert.equal((await request(body,headers)).status,status);
       assert.equal(await fs.readFile(target,'utf8'),'original');

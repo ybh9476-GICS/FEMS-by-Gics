@@ -34,3 +34,14 @@ test('흰색 포인트는 정렬 후 정확히 선택되고 원위치 복귀는 
   assert.deepEqual(L.route(history.current,id).points[editor.selection.index],{x:0,z:-2});
   editor.preview({x:0,z:-5},{tolerance:0});editor.finish(true);assert.deepEqual(history.current,initial);assert.equal(history.past.length,0);
 });
+test('팔레트는 선택된 선분만 수정하고 포인트 선택 시 비활성화된다',()=>{
+  const {editor,history,initial,id,elements}=fixture();
+  editor.select({id,kind:'segment',index:1});editor.render('plan');
+  const buttons=elements.get('connection-palette').children,red=buttons.find(b=>b.dataset.color==='#dc2626');
+  red.listeners.click();editor.render('plan');
+  assert.deepEqual(L.route(history.current,id).segmentColors,['#2563eb','#dc2626','#2563eb']);
+  assert.equal(red.attributes['aria-pressed'],'true');assert.equal(history.past.length,1);
+  editor.select({id,kind:'point',index:1});editor.render('plan');assert.ok(buttons.every(b=>b.disabled));
+  buttons[0].listeners.click();assert.equal(history.past.length,1);
+  history.undo();assert.deepEqual(history.current,initial);
+});

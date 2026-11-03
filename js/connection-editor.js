@@ -41,7 +41,10 @@
       try{this.api.commit(build());$('connection-error').textContent='';}
       catch(error){$('connection-error').textContent=error.message;}
     }
-    changeStyle(changes){this.apply(()=>L.setStyle(this.api.state(),this.selection.id,changes));}
+    changeStyle(changes){
+      if(changes.color){if(this.selection?.kind!=='segment')return;this.apply(()=>L.setSegmentColor(this.api.state(),this.selection.id,this.selection.index,changes.color));}
+      else this.apply(()=>L.setStyle(this.api.state(),this.selection.id,changes));
+    }
     previewNumeric(input){
       if(!this.selection)return;
       if(this.numeric?.input!==input)this.finishNumeric(true);
@@ -90,12 +93,14 @@
       const state=this.api.state(),line=this.selection?L.route(state,this.selection.id):null;
       if(!line)this.selection=null;
       const visible=view==='plan'&&!!line;$('connection-properties').hidden=!visible;
+      $('inspector-title').textContent=visible?'연결선 속성':'설비 속성';
       if(!visible)return false;
       $('properties').hidden=true;$('inspector-empty').hidden=true;
       const parent=state.equipment.find(e=>e.id===line.parentId),child=state.equipment.find(e=>e.id===line.id);
       $('connection-title').textContent=`${parent.name} → ${child.name}`;
       if(document.activeElement!==$('connection-diameter'))$('connection-diameter').value=line.diameter;
-      for(const button of $('connection-palette').children)button.setAttribute('aria-pressed',String(button.dataset.color===line.color));
+      const selectedColor=this.selection.kind==='segment'?line.segmentColors[this.selection.index]:null;
+      for(const button of $('connection-palette').children){button.disabled=!selectedColor;button.setAttribute('aria-pressed',String(button.dataset.color===selectedColor));}
       const point=this.selection.kind==='point'?line.points[this.selection.index]:null;
       const locked=!!point&&(this.selection.index===0||this.selection.index===line.points.length-1);
       $('connection-selection').textContent=point?`포인트 ${this.selection.index+1} / ${line.points.length}${locked?' · 설비 고정점 (이동·삭제 불가)':''}`:`선분 ${this.selection.index+1} · 부모 → 자식`;
