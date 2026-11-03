@@ -155,17 +155,32 @@
   $('properties').addEventListener('submit',event=>{event.preventDefault();if(!selected)return;const next=M.clone(history.current),item=next.equipment.find(e=>e.id===selected);for(const key of ['name','code','x','z','rotation','width','depth','height']){const value=$('properties').elements.namedItem(key).value;item[key]=['name','code'].includes(key)?value.trim():Number(value);}
     try{M.validate(next);commit(next,'설비 속성을 적용했습니다.');}catch(error){$('property-error').textContent=error.message;}});
   $('new').addEventListener('click',()=>{arm(null);commit(M.empty(),'빈 도면을 만들었습니다. 실행 취소로 이전 배치를 복원할 수 있습니다.');scene?.fit();});
-  let defaultExportUrl=null;
+  let defaultSnapshot=null,defaultSaving=false;
   $('export-default').addEventListener('click',()=>{
     finishNumeric();links?.finishNumeric(true);
-    const contents=window.FEMSDefaults.serialize(history.current);
+    defaultSnapshot=M.clone(history.current);
+    const contents=window.FEMSDefaults.serialize(defaultSnapshot);
     $('default-source').value=contents;$('default-summary').textContent=`${history.current.name} · 설비 ${history.current.equipment.length}개 · 연결선 ${window.FEMSConnections.routes(history.current).length}개`;
-    if(defaultExportUrl)URL.revokeObjectURL(defaultExportUrl);
-    defaultExportUrl=URL.createObjectURL(new Blob([contents],{type:'text/javascript;charset=utf-8'}));$('default-download').href=defaultExportUrl;$('default-dialog').showModal();
+    $('default-error').textContent='';$('default-dialog').showModal();
   });
   $('default-close').addEventListener('click',()=>$('default-dialog').close());
   $('default-dialog').addEventListener('keydown',event=>event.stopPropagation());
-  $('default-dialog').addEventListener('close',()=>{if(defaultExportUrl)URL.revokeObjectURL(defaultExportUrl);defaultExportUrl=null;});
+  $('default-dialog').addEventListener('cancel',event=>{if(defaultSaving)event.preventDefault();});
+  $('default-dialog').addEventListener('close',()=>{defaultSnapshot=null;});
+  $('default-overwrite').addEventListener('click',async()=>{
+    if(defaultSaving||!defaultSnapshot)return;
+    if(!['127.0.0.1','localhost'].includes(location.hostname)||location.protocol!=='http:'){
+      $('default-error').textContent='프로젝트의 로컬 서버(http://127.0.0.1:4175)에서만 기본 도면을 덮어쓸 수 있습니다.';return;
+    }
+    defaultSaving=true;$('default-overwrite').disabled=true;$('default-close').disabled=true;
+    $('default-overwrite').textContent='저장 중…';$('default-error').textContent='';
+    try{
+      const response=await fetch('/api/default-layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(defaultSnapshot)});
+      if(!response.ok)throw new Error([404,405].includes(response.status)?'로컬 서버를 다시 시작한 뒤 시도하세요.':'파일 쓰기 권한과 로컬 서버 상태를 확인한 뒤 다시 시도하세요.');
+      $('default-dialog').close();toast('js/default-layout.js에 기본 도면을 저장했습니다.');
+    }catch(error){$('default-error').textContent='기본 도면을 저장하지 못했습니다. '+error.message;}
+    finally{defaultSaving=false;$('default-overwrite').disabled=false;$('default-close').disabled=false;$('default-overwrite').textContent='덮어쓰기';}
+  });
   $('save').addEventListener('click',async()=>{
     try{await window.FEMSFiles.save(history.current,window.showSaveFilePicker?.bind(window));toast('선택한 파일에 도면을 저장했습니다.');}
     catch(error){if(error.name==='AbortError')toast('파일 저장을 취소했습니다.');else toast('파일을 저장하지 못했습니다: '+error.message);}

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="theme-color" content="#183b38">
   <title>FEMS by Gics</title>
   <link rel="stylesheet" href="css/app.css">
@@ -31,7 +31,13 @@
   <header class="topbar">
     <div class="brand"><span class="brand-mark">F</span><div><strong>FEMS <span>by Gics</span></strong><small>FACTORY ENERGY MANAGEMENT</small></div></div>
     <div class="project-title"><span class="project-dot"></span><span id="project-name">설비 배치도</span><span class="local-tag">LOCAL</span></div>
-    <div class="file-actions"><button id="new" class="quiet">새 도면</button><button id="open" class="quiet">열기</button><button id="export-default" class="quiet">기본 도면</button><button id="save" class="primary">↓ 도면 저장</button><input id="file" type="file" accept=".fems,application/json" hidden></div>
+    <div class="file-actions">
+      <button id="new" class="quiet icon-button" title="새 도면" aria-label="새 도면"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8zM14 3v5h5M12 11v6M9 14h6"/></svg></button>
+      <button id="open" class="quiet icon-button" title="도면 열기" aria-label="도면 열기"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 10V6a1 1 0 0 1 1-1h5l2 3h8a1 1 0 0 1 1 1v2M3 20l3-9h16l-3 9H3z"/></svg></button>
+      <button id="save" class="quiet icon-button" title="도면 저장 (Ctrl+S)" aria-label="도면 저장"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 3h13l4 4v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM7 3v6h9V3M7 21v-8h10v8"/></svg></button>
+      <button id="export-default" class="quiet icon-button" title="기본 도면 교체" aria-label="기본 도면 교체"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 8h16M16 4l4 4-4 4M20 16H4M8 12l-4 4 4 4"/></svg></button>
+      <input id="file" type="file" accept=".fems,application/json" hidden>
+    </div>
   </header>
   <main class="workspace">
     <aside class="catalog-panel" aria-label="배치된 설비 계층">
@@ -42,14 +48,13 @@
     <section class="editor" aria-label="설비 배치 작업 공간">
       <div class="editor-toolbar">
         <div class="tabs" role="tablist" aria-label="보기 모드"><button role="tab" id="view-3d" aria-selected="true">◇ 3D View</button><button role="tab" id="view-plan" aria-selected="false">▦ 평면도</button><button role="tab" id="view-list" aria-selected="false">☷ 설비 목록</button></div>
-        <div class="history-tools"><button id="undo" title="실행 취소 (Ctrl+Z)" aria-label="실행 취소">↶</button><button id="redo" title="다시 실행 (Ctrl+Shift+Z)" aria-label="다시 실행">↷</button><span class="divider"></span><button id="fit" title="전체 보기 (F)">전체 보기</button></div>
+        <div class="history-tools"><button id="undo" title="실행 취소 (Ctrl+Z)" aria-label="실행 취소">↶</button><button id="redo" title="다시 실행 (Ctrl+Shift+Z)" aria-label="다시 실행">↷</button><span class="divider"></span><button id="fit" class="icon-button" title="전체 보기 (F)" aria-label="전체 보기"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5"/></svg></button><button id="labels-toggle" class="icon-button" title="이름 표시 켜기/끄기" aria-label="이름 표시" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 3h8l10 10-8 8L3 11z"/><circle cx="7.5" cy="7.5" r="1"/></svg></button></div>
       </div>
       <div class="viewport" id="viewport">
         <div id="scene" aria-label="3D 설비 배치도"></div>
         <div id="labels" class="labels" aria-hidden="true"></div>
         <button id="gizmo-rotate" class="gizmo-rotate" type="button" aria-label="선택 설비 90° 회전" title="선택 설비를 90° 회전" hidden>↻ 90°</button>
         <div class="scene-heading"><p>배치 설계 <span>·</span> <span id="site-size">60 × 40 m</span></p></div>
-        <div class="scene-options"><button id="labels-toggle" aria-pressed="true">이름 표시</button></div>
         <div id="placement" class="placement" hidden><span id="placement-text"></span><button id="cancel-placement">취소 <kbd>Esc</kbd></button></div>
         <div id="empty-state" class="empty-state" hidden><strong>첫 번째 설비를 배치해 보세요</strong><span>하단 썸네일에서 설비를 선택하세요.</span></div>
         <div class="scene-controls"><div><button id="zoom-out" aria-label="축소">−</button><button id="zoom-in" aria-label="확대">+</button></div></div>
@@ -87,13 +92,14 @@
     </aside>
   </main>
   <div id="toast" role="status" aria-live="polite" hidden></div>
-  <dialog id="default-dialog" aria-labelledby="default-title">
-    <h2 id="default-title">현재 도면을 기본 도면으로 공유</h2>
+  <dialog id="default-dialog" aria-labelledby="default-title" aria-describedby="default-warning">
+    <h2 id="default-title">기본 도면을 덮어쓸까요?</h2>
     <p id="default-summary"></p>
-    <p>내려받은 파일을 프로젝트의 <code>js/default-layout.js</code>에 넣고 푸시하면, 처음 방문하는 환경에서 이 도면이 열립니다. 기존 브라우저의 저장된 작업은 유지됩니다.</p>
-    <p>편집 후 다시 공유하려면 새 파일을 내보내세요. GitHub에 자동 업로드되지는 않습니다.</p>
+    <p id="default-warning">프로젝트의 <code>js/default-layout.js</code>를 현재 도면으로 덮어씁니다. 이전 기본 도면은 교체되며, 이 파일 변경은 실행 취소(UNDO)로 되돌릴 수 없습니다.</p>
+    <p>현재 작업과 브라우저 자동 저장은 유지됩니다. GitHub에 반영하려면 별도로 커밋·푸시해야 합니다.</p>
     <details><summary>내보낼 데이터 보기</summary><textarea id="default-source" readonly aria-label="기본 도면 파일 내용" spellcheck="false"></textarea></details>
-    <div class="dialog-actions"><button id="default-close" type="button">닫기</button><a id="default-download" download="default-layout.js">기본 도면 내려받기</a></div>
+    <p id="default-error" class="error-message" role="alert"></p>
+    <div class="dialog-actions"><button id="default-close" type="button" autofocus>취소</button><button id="default-overwrite" class="primary" type="button">덮어쓰기</button></div>
   </dialog>
   <dialog id="connection-reset-dialog" aria-labelledby="connection-reset-title" aria-describedby="connection-reset-description">
     <form method="dialog">

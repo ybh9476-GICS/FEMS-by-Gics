@@ -2,6 +2,8 @@ const http = require('node:http');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { execFile } = require('node:child_process');
+const { randomUUID } = require('node:crypto');
+const defaults = require('../js/defaults.js');
 
 const projectRoot = path.resolve(__dirname, '..');
 const host = '127.0.0.1';
@@ -15,6 +17,7 @@ const mime = {
 
 function createServer(root = projectRoot) {
   const readyRoot = fs.realpath(root);
+  let savingDefault = false;
   return http.createServer(async (request, response) => {
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -25,9 +28,43 @@ function createServer(root = projectRoot) {
     try {
       const authority = new URL('http://' + request.headers.host);
       if (!['127.0.0.1', 'localhost'].includes(authority.hostname)) return reply(403, 'Local requests only.');
+      if (request.url === '/api/default-layout' && request.method === 'POST') {
+        // Only this app's origin may write, and only to the one fixed drawing file.
+        if (authority.port !== String(request.socket.localPort) || request.headers.origin !== authority.origin ||
+            (request.headers['sec-fetch-site'] && request.headers['sec-fetch-site'] !== 'same-origin')) return reply(403, 'Same-origin requests only.');
+        if (request.headers['content-type'] !== 'application/json') return reply(415, 'JSON required.');
+        if (savingDefault) return reply(409, 'A save is already in progress.');
+        savingDefault = true;
+        let temporary;
+        try {
+          let size = 0; const chunks = [];
+          for await (const chunk of request) {
+            size += chunk.length;
+            if (size > 2 * 1024 * 1024) { reply(413, 'Drawing must be 2 MB or smaller.'); return; }
+            chunks.push(chunk);
+          }
+          let contents;
+          try { contents = defaults.serialize(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
+          catch { return reply(400, 'Invalid FEMS drawing.'); }
+          const base = await readyRoot;
+          const directory = path.join(base, 'js');
+          const target = path.join(directory, 'default-layout.js');
+          if (await fs.realpath(directory) !== directory || await fs.realpath(target) !== target) return reply(403, 'Linked paths cannot be overwritten.');
+          temporary = path.join(directory, `.default-layout-${randomUUID()}.tmp`);
+          await fs.writeFile(temporary, contents, { flag: 'wx' });
+          await fs.rename(temporary, target);
+          temporary = null;
+          return reply(200, 'Saved js/default-layout.js');
+        } catch {
+          return reply(500, 'Could not save the default drawing.');
+        } finally {
+          if (temporary) await fs.unlink(temporary).catch(() => {});
+          savingDefault = false;
+        }
+      }
       if (!['GET', 'HEAD'].includes(request.method)) {
         response.setHeader('Allow', 'GET, HEAD');
-        return reply(405, 'This preview server does not write files.');
+        return reply(405, 'Method not allowed.');
       }
       let pathname;
       try { pathname = decodeURIComponent(request.url.split('?')[0]); }
