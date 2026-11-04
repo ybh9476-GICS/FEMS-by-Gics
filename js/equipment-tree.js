@@ -89,7 +89,7 @@
       const query=this.search.value.trim().toLowerCase();
       if(query!==this.searchQuery){this.searchCollapsed=new Set();this.searchDocumentCollapsed=false;this.searchQuery=query;}
       const collapsed=query?this.searchCollapsed:this.collapsed;
-      const key=JSON.stringify([state.name,state.equipment.map(e=>[e.id,e.parentId,e.name,e.code,e.type]),selected,selectedIds,query]);
+      const key=JSON.stringify([!!this.projectSelected,state.name,state.equipment.map(e=>[e.id,e.parentId,e.name,e.code,e.type]),selected,selectedIds,query]);
       if(!force&&key===this.key)return;
       const selectionChanged=selected!==this.selected||JSON.stringify(selectedIds)!==JSON.stringify(this.selectedIds);
       this.state=state;this.selected=selected;this.selectedIds=[...selectedIds];this.key=key;
@@ -149,21 +149,22 @@
       };
       if(!query||shown.size){
         const documentCollapsed=query?this.searchDocumentCollapsed:this.documentCollapsed;
-        const node=document.createElement('li');node.className='tree-document';node.setAttribute('role','treeitem');node.setAttribute('aria-label',state.name);node.setAttribute('aria-level','1');node.setAttribute('aria-expanded',String(!documentCollapsed));node.tabIndex=selectedIds.length?-1:0;
+        const node=document.createElement('li');node.className='tree-document';node.setAttribute('role','treeitem');node.setAttribute('aria-label',state.name);node.setAttribute('aria-selected',String(!!this.projectSelected));node.setAttribute('aria-level','1');node.setAttribute('aria-expanded',String(!documentCollapsed));node.tabIndex=selectedIds.length?-1:0;
         const row=document.createElement('div');row.className='tree-document-row';row.title=state.name+' · 드래그하여 최상위로 이동';
-        const toggle=document.createElement('button');toggle.type='button';toggle.className='tree-toggle';toggle.tabIndex=-1;toggle.textContent=documentCollapsed?'▸':'▾';toggle.setAttribute('aria-label','도면 '+(documentCollapsed?'펼치기':'접기'));
+        const toggle=document.createElement('button');toggle.type='button';toggle.className='tree-toggle';toggle.tabIndex=-1;toggle.textContent=documentCollapsed?'▸':'▾';toggle.setAttribute('aria-label','프로젝트 '+(documentCollapsed?'펼치기':'접기'));
         const name=document.createElement('strong');name.id='project-name';name.textContent=state.name;
         row.append(toggle,name);node.append(row);this.host.append(node);this.documentNode=node;this.documentRow=row;
         const expand=value=>{if(query)this.searchDocumentCollapsed=!value;else this.documentCollapsed=!value;this.render(this.state,this.selected,true,this.selectedIds);this.documentNode.focus();};
         toggle.addEventListener('click',event=>{event.stopPropagation();expand(documentCollapsed);});
-        row.addEventListener('click',()=>{this.handlers.select(null,[]);this.documentNode?.focus();});
+        const selectProject=()=>{if(this.handlers.selectProject)this.handlers.selectProject();else this.handlers.select(null,[]);this.documentNode?.focus();};
+        row.addEventListener('click',selectProject);
         node.addEventListener('keydown',event=>{
           if(event.target!==node)return;
           if(event.key==='ArrowRight'){if(documentCollapsed)expand(true);else this.host.querySelector('[role=treeitem][data-id]')?.focus();}
           else if(event.key==='ArrowLeft')expand(false);
           else if(event.key==='ArrowDown')this.host.querySelector('[role=treeitem][data-id]')?.focus();
           else if(event.key==='End'){const items=this.host.querySelectorAll('[role=treeitem][data-id]');items[items.length-1]?.focus();}
-          else if(event.key==='Enter'||event.key===' ')expand(documentCollapsed);
+          else if(event.key==='Enter'||event.key===' ')selectProject();
           else return;
           event.preventDefault();event.stopPropagation();
         });

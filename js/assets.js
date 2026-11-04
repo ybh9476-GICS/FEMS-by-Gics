@@ -24,6 +24,17 @@
     if(def.sha256&&await root.FEMSProjectFile.hash(bytes)!==def.sha256)throw new Error(def.name+': 에셋 원본이 다릅니다. 프로젝트 파일을 다시 열어주세요.');
     return bytes;
   }
+  const published=new Map();
+  async function ensureLocal(def,bytes){
+    const key=def.type+':'+def.sha256,known=published.get(key)||def;
+    const response=await fetch(known.model,{cache:'no-store'});
+    if(response.ok&&await root.FEMSProjectFile.hash(await response.arrayBuffer())===def.sha256)return {...def,type:known.type,model:known.model};
+    if(!response.ok&&response.status!==404)throw new Error('로컬 에셋 파일을 확인하지 못했습니다.');
+    const chunks=[];for(let i=0;i<bytes.length;i+=32768)chunks.push(String.fromCharCode(...bytes.subarray(i,i+32768)));
+    const saved=await fetch('api/assets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...def,glb:btoa(chunks.join(''))})});
+    if(!saved.ok)throw new Error(await saved.text());
+    const entry=F.metadata(await saved.json());published.set(key,entry);return entry;
+  }
   const loader=()=>loaderPromise??=Promise.all([import('../vendor/gltf/loaders/GLTFLoader.js'),import('../vendor/gltf/utils/SkeletonUtils.js')]).then(([{GLTFLoader},{clone}])=>{cloneModel=clone;return GLTFLoader;});
   function release(object){
     const geometries=new Set(),materials=new Set(),textures=new Set();
@@ -84,5 +95,5 @@
     try{const response=await fetch('assets/equipment/index.json');if(!response.ok)throw new Error('에셋 목록을 불러오지 못했습니다.');C.register(F.manifest(await response.json()));return '';}
     catch(error){return error.message+' 기본 설비는 사용할 수 있습니다.';}
   }
-  root.FEMSAssets={initialize,parse,load,make,disposeInstance,picture,release,readBytes,importBlobs};
+  root.FEMSAssets={initialize,parse,load,make,disposeInstance,picture,release,readBytes,importBlobs,ensureLocal};
 })(window);

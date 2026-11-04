@@ -14,6 +14,34 @@
       "width": 1,
       "depth": 1.999,
       "height": 1
+    },
+    {
+      "type": "asset-d948b5b9-ff9d-402c-b6f5-1fa436bae50a",
+      "name": "Utility_1F_Ect_Pump L02",
+      "en": "",
+      "custom": true,
+      "code": "",
+      "group": "추가 에셋",
+      "color": "#71869a",
+      "description": "프로젝트에 등록된 GLB 설비입니다.",
+      "model": "assets/equipment/asset-d948b5b9-ff9d-402c-b6f5-1fa436bae50a/model.glb",
+      "width": 1.00050025013,
+      "depth": 2,
+      "height": 1.00050025013
+    },
+    {
+      "type": "asset-fdf07816-8fa8-44b5-9142-014dccd2c2c0",
+      "name": "공기 압축기(150HP)",
+      "en": "",
+      "custom": true,
+      "code": "",
+      "group": "추가 에셋",
+      "color": "#71869a",
+      "description": "프로젝트에 등록된 GLB 설비입니다.",
+      "model": "assets/equipment/asset-fdf07816-8fa8-44b5-9142-014dccd2c2c0/model.glb",
+      "width": 2.83813364055,
+      "depth": 2,
+      "height": 2.02995391705
     }
   ]
 }

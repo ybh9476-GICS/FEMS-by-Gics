@@ -232,7 +232,27 @@
       canvas.addEventListener('webglcontextrestored',()=>this.handlers.error('그래픽 연결이 복구되었습니다. 저장 후 새로고침하여 화면을 다시 열어 주세요.'));
     }
     invalidate(){if(this.pending)return;this.pending=true;requestAnimationFrame(()=>{this.pending=false;if(!this.host.clientHeight||!this.host.clientWidth||root.document?.hidden)return;this.updateGizmo();this.updateHoverVisual();this.connections?.update(this.camera,this.height,this.mode,this.armed,this.connectionSelection,this.drag?null:this.hoverLink,{guides:this.connectionGuides,corner:this.cornerMode,site:this.state?.site});this.renderer.render(this.scene,this.camera);this.updateLabels();this.gizmo?.updateLabels(this.camera,this.width,this.height);if(this.connections?.active)this.invalidate();});}
-    updateLabels(){if(!this.state)return;const v=new T.Vector3();for(const item of this.state.equipment){const model=this.models.get(item.id);v.set(model.position.x,this.mode==='plan'?.1:item.height+.3,model.position.z).project(this.camera);const label=this.labels.get(item.id);const text=item.name;if(label.textContent!==text)label.textContent=text;label.hidden=!this.showLabels||v.z>1||v.z< -1||Math.abs(v.x)>1.1||Math.abs(v.y)>1.1;label.style.left=((v.x+1)/2*this.width)+'px';label.style.top=((-v.y+1)/2*this.height)+'px';}}
+    updateLabels(){
+      if(!this.state)return;
+      const v=new T.Vector3(),corner=new T.Vector3();
+      for(const item of this.state.equipment){
+        const model=this.models.get(item.id);
+        v.set(model.position.x,this.mode==='plan'?.1:item.height+.3,model.position.z).project(this.camera);
+        if(this.mode==='plan'){
+          // Anchor the label bottom to the screen's upper footprint edge, including rotation and live movement.
+          const cos=Math.cos(model.rotation.y),sin=Math.sin(model.rotation.y);
+          for(const x of [-item.width/2,item.width/2])for(const z of [-item.depth/2,item.depth/2]){
+            corner.set(model.position.x+x*cos+z*sin,.1,model.position.z-x*sin+z*cos).project(this.camera);
+            v.y=Math.max(v.y,corner.y);
+          }
+        }
+        const label=this.labels.get(item.id),text=item.name;
+        if(label.textContent!==text)label.textContent=text;
+        label.hidden=!this.showLabels||v.z>1||v.z< -1||Math.abs(v.x)>1.1||Math.abs(v.y)>1.1;
+        label.style.left=((v.x+1)/2*this.width)+'px';
+        label.style.top=((-v.y+1)/2*this.height-(this.mode==='plan'?4:0))+'px';
+      }
+    }
   }
   root.FEMSScene=Scene;
 })(window);

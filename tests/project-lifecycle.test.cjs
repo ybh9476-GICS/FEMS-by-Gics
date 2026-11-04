@@ -7,24 +7,25 @@ function fixture(){
     window:{FEMSFiles:F,FEMSAssets:{readBytes:async()=>{},importBlobs:async()=>{}},showSaveFilePicker:async()=>({createWritable:async()=>({write:async()=>{},close:async()=>{}})})},
     localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value)},
     $:id=>{if(!nodes.has(id))nodes.set(id,{handlers:{},value:'',addEventListener(type,fn){this.handlers[type]=fn;},close(){this.open=false;},showModal(){this.open=true;},click(){}});return nodes.get(id);},
-    finishPropertyEdit(){},links:null,saveLocal(){ctx.saves=(ctx.saves||0)+1;},render(){ctx.replaceVisible=history.current.project.kind==='new';},toast(message){ctx.message=message;},
+    finishPropertyEdit(){},links:null,saveLocal(){ctx.saves=(ctx.saves||0)+1;},renderCatalog(){},render(){ctx.syncProject();},toast(message){ctx.message=message;},
     switchProject(next){history.commit(next);ctx.render();return true;}};
+  vm.runInNewContext(source.slice(source.indexOf('  function syncProject()'),source.indexOf('  function arm(type)')),ctx);ctx.render();
   return {ctx,history,nodes,storage,run:start=>vm.runInNewContext(start,ctx),call:(id,type='click')=>nodes.get(id).handlers[type]()};
 }
-test('저장 취소·쓰기 실패는 새 도면 상태를 유지하고 성공한 뒤에만 기본 도면 교체를 숨긴다',async()=>{
+test('저장 취소·쓰기 실패는 새 도면 상태를 유지하고 성공 후에도 기본 프로젝트 교체를 사용할 수 있다',async()=>{
   const f=fixture();f.run(source.slice(source.indexOf('  let fileBusy=false;'),source.indexOf("  document.addEventListener('keydown'")));
-  const initial=M.clone(f.history.current);
+  const initial=M.clone(f.history.current);assert.equal(f.nodes.get('export-default').disabled,false);
   f.ctx.window.showSaveFilePicker=async()=>{const e=Error('cancel');e.name='AbortError';throw e;};await f.call('save');assert.deepEqual(f.history.current,initial);
   f.ctx.window.showSaveFilePicker=async()=>({createWritable:async()=>({write:async()=>{throw Error('disk full');},abort:async()=>{}})});await f.call('save');assert.deepEqual(f.history.current,initial);
   f.history.commit({...M.clone(initial),name:'변경 이름'});
   f.ctx.window.showSaveFilePicker=async()=>({createWritable:async()=>({write:async()=>{},close:async()=>{}})});await f.call('save');
-  assert.equal(f.ctx.replaceVisible,false);assert.equal(f.history.current.project.kind,'file');f.history.undo();assert.equal(f.history.current.project.kind,'file');
+  assert.equal(f.nodes.get('export-default').disabled,false);assert.notEqual(f.nodes.get('export-default').hidden,true);assert.equal(f.history.current.project.kind,'file');f.history.undo();assert.equal(f.history.current.project.kind,'file');
 });
 test('모델 보관 실패는 기존 도면을 유지하고 파일 열기 성공 후에만 파일 프로젝트로 전환한다',async()=>{
   const f=fixture();f.run(source.slice(source.indexOf('  let fileBusy=false;'),source.indexOf("  document.addEventListener('keydown'")));
   const packet=await P.encode(P.attach(M.empty(),[]));const file={name:'project.fems',size:packet.bytes.length,arrayBuffer:async()=>packet.bytes};
   const before=M.clone(f.history.current);f.nodes.get('file').files=[file];f.ctx.window.FEMSAssets.importBlobs=async()=>{throw Error('quota');};await f.call('file','change');assert.deepEqual(f.history.current,before);
-  f.ctx.window.FEMSAssets.importBlobs=async()=>{};await f.call('file','change');assert.equal(f.history.current.equipment.length,0);assert.equal(f.ctx.replaceVisible,false);f.history.undo();assert.deepEqual(f.history.current,before);
+  f.ctx.window.FEMSAssets.importBlobs=async()=>{};await f.call('file','change');assert.equal(f.history.current.equipment.length,0);assert.equal(f.nodes.get('export-default').disabled,false);assert.notEqual(f.nodes.get('export-default').hidden,true);f.history.undo();f.ctx.render();assert.deepEqual(f.history.current,before);assert.equal(f.nodes.get('export-default').disabled,false);
 });
 test('기본 도면 갱신은 기존 작업 유지·백업 실패·백업 후 전환·실행 취소를 구분한다',()=>{
   const f=fixture();f.run(source.slice(source.indexOf("  $('default-update-dialog').addEventListener"),source.lastIndexOf('})();')));

@@ -10,7 +10,7 @@
   bundled.project.kind='new';bundled.project.baseRevision=defaultRevision;
   let initial=M.clone(bundled), startupMessage='', autosaveAllowed=true, storageFailed=false;
   try {const saved=localStorage.getItem(M.STORAGE_KEY);if(saved)initial=M.validate(JSON.parse(saved));}
-  catch(error){autosaveAllowed=false;startupMessage='이전 작업을 읽지 못했습니다. 원본 보존을 위해 자동 저장을 중지했습니다. 파일 열기·도면 저장은 사용할 수 있습니다.';}
+  catch(error){autosaveAllowed=false;startupMessage='이전 작업을 읽지 못했습니다. 원본 보존을 위해 자동 저장을 중지했습니다. 파일 열기·프로젝트 저장은 사용할 수 있습니다.';}
   initial=P.attach(initial,defaultAssets);
   const needsDefaultUpdate=initial.project.kind==='new'&&initial.project.baseRevision!==defaultRevision;
   C.replace(initial.project.assets);
@@ -27,7 +27,17 @@
       history.current=upgraded;branchMigrationMessage='기존 도면을 백업하고 공유 분기점 구조로 변환했습니다.';
     }catch(error){autosaveAllowed=false;startupMessage='공유 분기점 변환을 완료하지 못해 원본을 유지합니다. '+error.message;}
   }
-  let propertyEdit = null,groupFrame=null,groupRatioLock=null,nameDraft=null;
+  let propertyEdit = null,groupFrame=null,groupRatioLock=null,nameDraft=null,projectSelected=false,projectNameDraft=false;
+  function cancelProjectNameEdit(){
+    if(!projectNameDraft)return;projectNameDraft=false;
+    $('project-title').value=history.current.name;$('project-title').removeAttribute('aria-invalid');$('project-error').textContent='';
+  }
+  function applyProjectNameEdit(){
+    if(!projectSelected||!projectNameDraft)return;
+    const input=$('project-title'),next=M.clone(history.current);next.name=input.value.trim();
+    try{M.validate(next);projectNameDraft=false;commit(next);input.value=history.current.name;input.removeAttribute('aria-invalid');$('project-error').textContent='';}
+    catch(error){input.setAttribute('aria-invalid','true');$('project-error').textContent=error.message;}
+  }
   function cancelNameEdit() {
     if(!nameDraft)return;
     const {input,id}=nameDraft;nameDraft=null;
@@ -56,7 +66,7 @@
     }
   }
   function finishPropertyEdit(commit = true) {
-    cancelNameEdit();
+    cancelProjectNameEdit();cancelNameEdit();
     if (!propertyEdit) return;
     const { input, id, group, frame } = propertyEdit;
     propertyEdit = null;
@@ -123,14 +133,15 @@
   function toast(message){clearTimeout(toastTimer);$('toast').textContent=message;$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,1250);}
   function hideCatalogTooltip(){$('catalog-tooltip').hidden=true;}
   function renderCatalog(){library?.render(armed);}
-  function syncProject(){C.replace(history.current.project?.assets||[]);$('export-default').hidden=history.current.project?.kind==='file';renderCatalog();}
-  function arm(type){if(type){links?.clear();renderInspector();links?.render(view);if(scene)scene.connectionSelection=null;}if(type&&!scene){toast('3D 그래픽을 사용할 수 없습니다. 기존 설비는 목록에서 편집할 수 있습니다.');return;}armed=type;if(type&&view==='list')setView('3d');scene?.setArmed(type);renderCatalog();}
+  function syncProject(){C.replace(history.current.project?.assets||[]);$('export-default').disabled=false;renderCatalog();}
+  function arm(type){if(type){projectSelected=false;links?.clear();renderInspector();links?.render(view);if(scene)scene.connectionSelection=null;}if(type&&!scene){toast('3D 그래픽을 사용할 수 없습니다. 기존 설비는 좌측 계층에서 선택해 편집할 수 있습니다.');return;}armed=type;scene?.setArmed(type);renderCatalog();}
   function saveLocal(){if(!autosaveAllowed){$('save-status').textContent='자동 저장 중지 · 파일로 보관';return;}
     try{localStorage.setItem(M.STORAGE_KEY,JSON.stringify(history.current));storageFailed=false;$('save-status').textContent='브라우저에 자동 저장됨';}
-    catch(error){storageFailed=true;$('save-status').textContent='자동 저장 실패 · 파일로 보관';toast('브라우저 자동 저장에 실패했습니다. 도면 저장으로 작업을 보관하세요.');}}
+    catch(error){storageFailed=true;$('save-status').textContent='자동 저장 실패 · 파일로 보관';toast('브라우저 자동 저장에 실패했습니다. 프로젝트 저장으로 작업을 보관하세요.');}}
   function commit(next,message){try{if(history.commit(window.FEMSConnections.enableShared(next))){saveLocal();render();if(message)toast(message);}return true;}catch(error){toast(error.message);scene?.setState(history.current,selected,M.overlaps(history.current),selectedIds);return false;}}
-  function select(id,ids=id?[id]:[]){links?.clear();finishPropertyEdit();if(armed)arm(null);selectedIds=[...ids];selected=ids.length===1?ids[0]:null;groupFrame=null;render();}
+  function select(id,ids=id?[id]:[],isProject=false){links?.clear();finishPropertyEdit();if(armed)arm(null);projectSelected=isProject;selectedIds=[...ids];selected=ids.length===1?ids[0]:null;groupFrame=null;render();}
   function reparent(id,parentId,referenceId,position='inside'){
+    projectSelected=false;
     links?.clear();
     finishPropertyEdit();
     try{
@@ -140,12 +151,14 @@
       if(!commit(next,position!=='inside'?'설비의 계층과 순서를 변경했습니다.':parentId?'하위 설비로 연결했습니다.':'최상위 목록 끝으로 이동했습니다.')){selected=previous.selected;selectedIds=previous.selectedIds;groupFrame=previous.groupFrame;}render();
     }catch(error){toast(error.message);}
   }
-  function add(type,x,z){try{const next=M.clone(history.current),item=M.create(type,next,x,z);next.equipment.push(item);const previous=selected;selected=item.id;if(commit(next,`${item.name}을(를) 배치했습니다.`))arm(null);else selected=previous;}catch(error){toast(error.message);}}
+  function add(type,x,z){projectSelected=false;try{const next=M.clone(history.current),item=M.create(type,next,x,z);next.equipment.push(item);const previous=selected;selected=item.id;if(commit(next,`${item.name}을(를) 배치했습니다.`))arm(null);else selected=previous;}catch(error){toast(error.message);}}
   function changeSelected(changes,message){if(!selected)return;const next=M.clone(history.current);Object.assign(next.equipment.find(item=>item.id===selected),changes);return commit(next,message);}
   function renderInspector(){
-    cancelNameEdit();
+    cancelProjectNameEdit();cancelNameEdit();
+    $('project-properties').hidden=!projectSelected;
+    if(projectSelected)$('project-title').value=history.current.name;
     const multiple=selectedIds.length>1,item=history.current.equipment.find(e=>e.id===selected),form=$('properties');
-    form.hidden=!item&&!multiple;$('inspector-empty').hidden=!!item||multiple;$('property-error').textContent='';
+    form.hidden=!item&&!multiple;$('inspector-empty').hidden=!!item||multiple||projectSelected;$('property-error').textContent='';
     for(const name of ['name','code'])form.elements.namedItem(name).disabled=multiple;
     $('duplicate').disabled=multiple;$('delete').disabled=!item&&!multiple;
     $('equipment-code-connect').disabled=multiple||!item;
@@ -164,10 +177,9 @@
     if(!item)return;const def=C.get(item.type);$('selection-type').textContent=def.name;$('selection-en').textContent=def.en;$('selection-icon').innerHTML=icon(item.type);$('selection-description').textContent=def.description;
     for(const name of ['name','code','x','z','rotation','width','depth','height'])form.elements.namedItem(name).value=item[name];
   }
-  function renderTable(){const body=$('equipment-table');body.replaceChildren();for(const item of history.current.equipment){const row=document.createElement('tr');row.dataset.id=item.id;row.setAttribute('aria-selected',String(selectedIds.includes(item.id)));const values=[item.code,item.name,C.get(item.type).name,`${item.x} / ${item.z}`,`${item.width} × ${item.depth} × ${item.height}`,`${item.rotation}°`];values.forEach((value,index)=>{const td=document.createElement('td');if(index===0){const button=document.createElement('button');button.textContent=value||'—';button.setAttribute('aria-label',`${item.code||item.name} 선택`);td.appendChild(button);}else td.textContent=value;row.appendChild(td);});row.addEventListener('click',()=>select(item.id));body.appendChild(row);}$('table-empty').hidden=history.current.equipment.length>0;}
-  function render(preserveInputs=false){syncProject();const state=history.current;if(!state.equipment.some(e=>e.id===selected))selected=null;selectedIds=selected?[selected]:selectedIds.filter(id=>state.equipment.some(e=>e.id===id));if(selectedIds.length===1)selected=selectedIds[0];const warnings=M.overlaps(state);$('grid-size').textContent=M.siteGridStep(state.site)+' m 그리드';$('equipment-count').textContent=state.equipment.length;$('site-size').textContent=`${state.site.width} × ${state.site.depth} m`;$('empty-state').hidden=state.equipment.length>0||!!armed;$('undo').disabled=!history.past.length&&!history.editingChanged;$('redo').disabled=!history.future.length||history.editingChanged;$('overlap-status').textContent=warnings.size?`배치 겹침 ${warnings.size}개 확인`:'';if(!preserveInputs)renderInspector();renderTable();tree?.render(state,selected,false,selectedIds);links?.render(view);if(scene)scene.connectionSelection=links?.selection;scene?.setState(state,selected,warnings,selectedIds);}
-  function setView(next){if(scene?.drag?.connection)scene.cancelDrag();links?.clear();view=next;renderInspector();links?.render(view);if(scene)scene.connectionSelection=null;for(const key of ['3d','plan','list'])$('view-'+key).setAttribute('aria-selected',String(key===view));$('viewport').hidden=view==='list';$('table-view').hidden=view!=='list';$('fit').disabled=view==='list';if(view==='list'){arm(null);}else{scene?.setMode(view);$('scene').setAttribute('aria-label',view==='plan'?'평면 설비 배치도':'3D 설비 배치도');}}
-  function travel(direction){if(scene?.drag?.connection)scene.cancelDrag();links?.clear();if(history[direction]()){selected=null;selectedIds=[];groupFrame=null;arm(null);saveLocal();render();toast(direction==='undo'?'실행을 취소했습니다.':'다시 실행했습니다.');}}
+  function render(preserveInputs=false){syncProject();const state=history.current;if(!state.equipment.some(e=>e.id===selected))selected=null;selectedIds=selected?[selected]:selectedIds.filter(id=>state.equipment.some(e=>e.id===id));if(selectedIds.length===1)selected=selectedIds[0];const warnings=M.overlaps(state);$('grid-size').textContent=M.siteGridStep(state.site)+' m 그리드';$('equipment-count').textContent=state.equipment.length;$('site-size').textContent=`${state.site.width} × ${state.site.depth} m`;$('empty-state').hidden=state.equipment.length>0||!!armed;$('undo').disabled=!history.past.length&&!history.editingChanged;$('redo').disabled=!history.future.length||history.editingChanged;$('overlap-status').textContent=warnings.size?`배치 겹침 ${warnings.size}개 확인`:'';if(!preserveInputs)renderInspector();if(tree){tree.projectSelected=projectSelected;tree.render(state,selected,false,selectedIds);}links?.render(view);if(scene)scene.connectionSelection=links?.selection;scene?.setState(state,selected,warnings,selectedIds);}
+  function setView(next){if(scene?.drag?.connection)scene.cancelDrag();links?.clear();view=next;renderInspector();links?.render(view);if(scene)scene.connectionSelection=null;for(const key of ['3d','plan'])$('view-'+key).setAttribute('aria-selected',String(key===view));scene?.setMode(view);$('scene').setAttribute('aria-label',view==='plan'?'평면 설비 배치도':'3D 설비 배치도');}
+  function travel(direction){if(scene?.drag?.connection)scene.cancelDrag();links?.clear();if(history[direction]()){projectSelected=false;selected=null;selectedIds=[];groupFrame=null;arm(null);saveLocal();render();toast(direction==='undo'?'실행을 취소했습니다.':'다시 실행했습니다.');}}
   function rotate(){finishPropertyEdit();if(selectedIds.length>1){try{const frame=currentGroup(),result=M.transformGroup(history.current,selectedIds,frame,'rotation',(frame.rotation+90)%360);groupFrame=result.frame;commit(result.state,'선택한 설비를 중심점 기준으로 90° 회전했습니다.');}catch(error){$('property-error').textContent=error.message;}return;}const item=history.current.equipment.find(e=>e.id===selected);if(item)changeSelected({rotation:(item.rotation+90)%360},'90° 회전했습니다.');}
   function remove(){if(links?.selection){links.remove();return;}finishPropertyEdit();if(selectedIds.length>1){try{const count=selectedIds.length;commit(M.removeEquipmentGroup(history.current,selectedIds),count+'개 설비를 삭제했습니다. 실행 취소로 복원할 수 있습니다.');groupFrame=null;}catch(error){$('property-error').textContent=error.message;}return;}if(!selected)return;const hasChildren=history.current.equipment.some(e=>e.parentId===selected);commit(M.removeEquipment(history.current,selected),hasChildren?'설비를 삭제하고 하위 설비는 한 단계 위로 옮겼습니다. 실행 취소할 수 있습니다.':'설비를 삭제했습니다. 실행 취소로 복원할 수 있습니다.');}
   function duplicate(){const item=history.current.equipment.find(e=>e.id===selected);if(!item)return;try{const next=M.clone(history.current),copy=M.create(item.type,next);const id=copy.id,code=copy.code,name=M.duplicateName(next,item.name);Object.assign(copy,item,{id,code,name});Object.assign(copy,M.clampPosition(copy,item.x+item.width+1,item.z, next.site));next.equipment.push(copy);selected=copy.id;commit(next,'설비를 복제했습니다. 위치와 겹침을 확인하세요.');}catch(error){toast(error.message);}}
@@ -192,10 +204,10 @@
     if(changed)toast(commit?'설비 위치를 변경했습니다.':'설비 이동을 취소했습니다.');
   }
   $('gizmo-rotate').addEventListener('click',rotate);
-  try{scene=new window.FEMSScene($('scene'),$('labels'),{select,place:add,move:(id,pos)=>{selected=id;changeSelected(pos,'설비 위치를 변경했습니다.');},gizmoStart:()=>finishPropertyEdit(),gizmoPreview:previewGizmo,gizmoEnd:finishGizmo,connectionSelect:hit=>{finishPropertyEdit();selected=null;selectedIds=[];links.select(hit);render();},connectionStart:hit=>links.start(hit),connectionPreview:(pos,options)=>links.preview(pos,options),connectionEnd:ok=>links.finish(ok),error:graphicsError},$('gizmo-rotate'));}
+  try{scene=new window.FEMSScene($('scene'),$('labels'),{select,place:add,move:(id,pos)=>{selected=id;changeSelected(pos,'설비 위치를 변경했습니다.');},gizmoStart:()=>finishPropertyEdit(),gizmoPreview:previewGizmo,gizmoEnd:finishGizmo,connectionSelect:hit=>{finishPropertyEdit();projectSelected=false;selected=null;selectedIds=[];links.select(hit);render();},connectionStart:hit=>links.start(hit),connectionPreview:(pos,options)=>links.preview(pos,options),connectionEnd:ok=>links.finish(ok),error:graphicsError},$('gizmo-rotate'));}
   catch(error){graphicsError('3D 화면을 시작할 수 없습니다. WebGL 2를 지원하는 Edge 또는 Chrome에서 그래픽 가속을 확인하세요. 설비 목록과 속성 편집·파일 저장은 계속 사용할 수 있습니다.');}
-  tree=new window.FEMSEquipmentTree($('equipment-tree'),$('equipment-search'),{select,reparent,error:toast});
-  for(const key of ['3d','plan','list'])$('view-'+key).addEventListener('click',()=>setView(key));
+  tree=new window.FEMSEquipmentTree($('equipment-tree'),$('equipment-search'),{select,selectProject:()=>select(null,[],true),reparent,error:toast});
+  for(const key of ['3d','plan'])$('view-'+key).addEventListener('click',()=>setView(key));
   $('fit').addEventListener('click',()=>scene?.fit());$('zoom-in').addEventListener('click',()=>scene?.zoom(.85));$('zoom-out').addEventListener('click',()=>scene?.zoom(1.18));
   $('labels-toggle').addEventListener('click',()=>{if(!scene)return;scene.showLabels=!scene.showLabels;$('labels-toggle').setAttribute('aria-pressed',String(scene.showLabels));scene.invalidate();});
   $('site-edit').addEventListener('click',()=>{
@@ -241,12 +253,20 @@
     if (!document.body.dataset.numberScrubbing) finishPropertyEdit();
   });
   $('properties').addEventListener('submit',event=>{event.preventDefault();finishPropertyEdit();});
+  $('project-properties').addEventListener('input',()=>{projectNameDraft=true;$('project-title').removeAttribute('aria-invalid');$('project-error').textContent='';});
+  $('project-properties').addEventListener('submit',event=>event.preventDefault());
+  $('project-title').addEventListener('blur',cancelProjectNameEdit);
+  $('project-title').addEventListener('keydown',event=>{
+    event.stopPropagation();if(event.isComposing||event.keyCode===229)return;
+    if(event.key==='Enter'){event.preventDefault();applyProjectNameEdit();}
+    else if(event.key==='Escape'){event.preventDefault();cancelProjectNameEdit();}
+  });
+  document.addEventListener('pointerdown',event=>{if(event.target!==$('project-title'))cancelProjectNameEdit();},true);
   document.addEventListener('pointerdown',event=>{if(nameDraft&&event.target!==nameDraft.input)cancelNameEdit();},true);
-  function switchProject(next,message){if(library)library.filter='builtin';finishPropertyEdit();links?.clear();scene?.cancelDrag();arm(null);selected=null;selectedIds=[];groupFrame=null;const ok=commit(next,message);if(ok)scene?.fit();return ok;}
-  $('new').addEventListener('click',()=>switchProject(P.attach(M.empty(),[],'new',defaultRevision),'새 도면 · 추가 에셋 목록을 초기화했습니다. 실행 취소로 복구할 수 있습니다.'));
+  function switchProject(next,message){projectSelected=false;if(library)library.filter='builtin';finishPropertyEdit();links?.clear();scene?.cancelDrag();arm(null);selected=null;selectedIds=[];groupFrame=null;const ok=commit(next,message);if(ok)scene?.fit();return ok;}
+  $('new').addEventListener('click',()=>switchProject(P.attach({...M.empty(),name:'새 FEMS 프로젝트'},[],'new',defaultRevision),'새 프로젝트 · 추가 에셋 목록을 초기화했습니다. 실행 취소로 복구할 수 있습니다.'));
   let defaultSnapshot=null,defaultSaving=false;
   $('export-default').addEventListener('click',()=>{
-    if(history.current.project.kind!=='new')return;
     finishPropertyEdit();links?.finishNumeric(true);
     defaultSnapshot=M.clone(history.current);
     const contents=window.FEMSDefaults.serialize(defaultSnapshot);
@@ -263,15 +283,16 @@
   $('default-overwrite').addEventListener('click',async()=>{
     if(defaultSaving||!defaultSnapshot)return;
     if(!['127.0.0.1','localhost'].includes(location.hostname)||location.protocol!=='http:'){
-      $('default-error').textContent='프로젝트의 로컬 서버(http://127.0.0.1:4175)에서만 기본 도면을 덮어쓸 수 있습니다.';return;
+      $('default-error').textContent='프로젝트의 로컬 서버(http://127.0.0.1:4175)에서만 기본 프로젝트를 덮어쓸 수 있습니다.';return;
     }
     defaultSaving=true;$('default-overwrite').disabled=true;$('default-close').disabled=true;
     $('default-overwrite').textContent='저장 중…';$('default-error').textContent='';
     try{
+      defaultSnapshot=await P.prepareDefault(defaultSnapshot,window.FEMSAssets.readBytes,window.FEMSAssets.ensureLocal);
       const response=await fetch('/api/default-layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(defaultSnapshot)});
       if(!response.ok)throw new Error([404,405].includes(response.status)?'로컬 서버를 다시 시작한 뒤 시도하세요.':'파일 쓰기 권한과 로컬 서버 상태를 확인한 뒤 다시 시도하세요.');
       defaultRevision=await P.revision(defaultSnapshot,defaultSnapshot.project.assets);bundled=M.clone(defaultSnapshot);bundled.project.baseRevision=defaultRevision;history.current.project.baseRevision=defaultRevision;saveLocal();$('default-dialog').close();toast('도면과 추가 에셋 목록을 기본값으로 저장했습니다.');
-    }catch(error){$('default-error').textContent='기본 도면을 저장하지 못했습니다. '+error.message;}
+    }catch(error){$('default-error').textContent='기본 프로젝트를 저장하지 못했습니다. '+error.message;}
     finally{defaultSaving=false;$('default-overwrite').disabled=false;$('default-close').disabled=false;$('default-overwrite').textContent='덮어쓰기';}
   });
   let fileBusy=false;
@@ -311,7 +332,7 @@
   $('default-update-dialog').addEventListener('cancel',event=>{event.preventDefault();keepDefaultWork();});
   $('default-update-load').addEventListener('click',()=>{
     try{localStorage.setItem(defaultBackupKey,JSON.stringify(history.current));
-      if(switchProject(M.clone(bundled),'새 기본 도면을 불러왔습니다. 기존 작업은 백업했습니다.'))$('default-update-dialog').close();
+      if(switchProject(M.clone(bundled),'새 기본 프로젝트를 불러왔습니다. 기존 작업은 백업했습니다.'))$('default-update-dialog').close();
     }catch(error){$('default-update-error').textContent='백업하지 못해 기존 작업을 유지합니다. '+error.message;}
   });
   $('default-backup-save').addEventListener('click',async()=>{

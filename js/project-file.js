@@ -57,5 +57,20 @@
     for(const item of drawing.equipment)if(F.isId(item.type)&&!drawing.project.assets.some(a=>a.type===item.type))throw new Error('설비의 추가 에셋 정보가 없습니다.');
     return {drawing,blobs,legacy:false};
   }
-  const api={MAX_BYTES,attach,revision,hash,encode,decode};if(node)module.exports=api;else root.FEMSProjectFile=api;
+  async function prepareDefault(state,readAsset,ensureLocal){
+    const drawing=attach(state);drawing.project.kind='new';
+    const types=new Map();
+    for(let i=0;i<drawing.project.assets.length;i++){
+      const entry=drawing.project.assets[i],bytes=new Uint8Array(await readAsset(entry));F.inspect(bytes);
+      const sha256=await hash(bytes);if(entry.sha256&&entry.sha256!==sha256)throw new Error(entry.name+': 에셋 원본이 다릅니다.');
+      const local=F.metadata(await ensureLocal({...entry,sha256},bytes));
+      if(local.sha256!==sha256)throw new Error('로컬 에셋 검증에 실패했습니다.');
+      types.set(entry.type,local.type);drawing.project.assets[i]=local;
+    }
+    for(const item of drawing.equipment)if(F.isId(item.type)){
+      if(!types.has(item.type))throw new Error(item.name+': 에셋 원본이 없습니다.');item.type=types.get(item.type);
+    }
+    return M.validate(drawing);
+  }
+  const api={MAX_BYTES,attach,revision,hash,encode,decode,prepareDefault};if(node)module.exports=api;else root.FEMSProjectFile=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

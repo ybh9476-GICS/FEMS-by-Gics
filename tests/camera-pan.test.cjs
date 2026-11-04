@@ -41,6 +41,31 @@ function fixture(mode) {
   return { scene, listeners };
 }
 
+test('평면도 이름표는 회전·줌·이동 중에도 설비 상단과 4px 간격을 유지하고 3D 위치는 유지된다',()=>{
+  const {scene}=fixture('plan'),item=scene.state.equipment[0],model=scene.models.get('test');
+  Object.assign(item,{width:6,depth:2,name:'설비'});
+  const label={style:{}};scene.labels=new Map([['test',label]]);scene.showLabels=true;
+  const geometry=new T.BoxGeometry(item.width,0,item.depth);
+  for(const radius of [20,64])for(const rotation of [0,Math.PI/4,Math.PI/2])for(const planYaw of [0,.7]){
+    scene.radius=radius;scene.planYaw=planYaw;scene.updateCamera();
+    model.position.set(3,0,-2);model.rotation.y=rotation;model.updateMatrixWorld();
+    scene.updateLabels();
+    const vertices=geometry.attributes.position;let top=Infinity;
+    for(let i=0;i<vertices.count;i++){
+      const p=new T.Vector3().fromBufferAttribute(vertices,i).applyMatrix4(model.matrixWorld);p.y=.1;p.project(scene.camera);
+      top=Math.min(top,(1-p.y)/2*scene.height);
+    }
+    const center=new T.Vector3(3,.1,-2).project(scene.camera);
+    assert.ok(Math.abs(parseFloat(label.style.top)-(top-4))<1e-8);
+    assert.ok(Math.abs(parseFloat(label.style.left)-(center.x+1)/2*scene.width)<1e-8);
+    assert.ok(top<(1-center.y)/2*scene.height);
+    assert.equal(label.hidden,false);
+  }
+  geometry.dispose();scene.mode='3d';scene.camera=scene.perspective;scene.updateCamera();scene.updateLabels();
+  const anchor=new T.Vector3(3,item.height+.3,-2).project(scene.camera);
+  assert.ok(Math.abs(parseFloat(label.style.top)-(1-anchor.y)/2*scene.height)<1e-8);
+});
+
 for (const mode of ['plan', '3d']) {
   test(`${mode}: 썸네일 드롭은 한 번 배치하고 화면 밖·외부 파일은 배치하지 않는다`,()=>{
     const {scene,listeners}=fixture(mode),placed=[];

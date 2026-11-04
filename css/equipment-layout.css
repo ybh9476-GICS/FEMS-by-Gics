@@ -93,3 +93,10 @@
 #catalog-tooltip span { display: block; color: #b8d4c4; font-size: 10px; margin-top: 4px; }
 @media(max-width:1150px) { .equipment-dock { padding-inline: 6px; }.equipment-thumbnail { flex-basis: 54px; width: 54px; }.equipment-thumbnail img { width: 52px; }.tree-row { gap: 4px; }.tree-scroll { padding-inline: 6px; } }
 @media(max-width:760px) { .workspace { grid-template-columns: 132px minmax(0,1fr); }.tree-name strong, .tree-document-row strong { font-size: 10px; }.tree-row { padding-right: 3px; gap: 4px; }.tree-toggle { flex-basis: 15px; width: 15px; }.tree-scroll { padding-inline: 3px; }.catalog-panel .panel-hint { padding: 10px; font-size: 9px; }.catalog-panel .library-foot { font-size: 8px; }.equipment-dock { padding: 7px 4px; }.thumbnail-strip { gap: 4px; }.equipment-thumbnail { flex-basis: 48px; width: 48px; height: 46px; }.equipment-thumbnail img { width: 46px; height: 42px; } }
+
+#project-properties { padding: 4px 20px 16px; }
+#project-title { font-size: 11px; }
+[role=treeitem][aria-selected=true] > .tree-document-row { background: #eaf5ef; border-color: #b4d1c1; }
+@media(max-width:1150px) { #project-properties { padding-inline: 16px; } }
+.tree-document:focus { outline: none; }
+.tree-document:focus-visible > .tree-document-row { outline: 2px solid #69a48a; outline-offset: -1px; }

@@ -2,7 +2,7 @@
 window.FEMSDefaultLayout = {
   "format": "gics-fems",
   "version": 2,
-  "name": "FEMS 설비 배치 예시",
+  "name": "FEMS demo",
   "site": {
     "width": 100,
     "depth": 100
@@ -47,49 +47,11 @@ window.FEMSDefaultLayout = {
       "parentId": "eq-f9140d03-45e0-4d88-b0e0-09ae5a7f4172"
     },
     {
-      "id": "eq-7005d82b-a46f-41df-9b13-ecb2eed2d360",
-      "type": "tower",
-      "code": "",
-      "name": "GRID",
-      "x": 3,
-      "z": -10.5,
-      "rotation": 0,
-      "width": 3.6,
-      "depth": 3.6,
-      "height": 12
-    },
-    {
-      "id": "eq-144b7596-d4cf-4f89-a317-3f706a15961a",
-      "type": "receiving",
-      "code": "",
-      "name": "수전반(1)",
-      "x": -0.54,
-      "z": -0.54,
-      "rotation": 0,
-      "width": 2.4,
-      "depth": 1.2,
-      "height": 2.4,
-      "parentId": "eq-7005d82b-a46f-41df-9b13-ecb2eed2d360"
-    },
-    {
-      "id": "eq-e60ce7b2-4c36-4cf1-9970-49a2f900bee7",
-      "type": "transformer",
-      "code": "",
-      "name": "변압기(1)",
-      "x": 3.39,
-      "z": 14.58,
-      "rotation": 0,
-      "width": 2.4,
-      "depth": 1.8,
-      "height": 2.4,
-      "parentId": "eq-144b7596-d4cf-4f89-a317-3f706a15961a"
-    },
-    {
       "id": "eq-76e7671c-d158-48f4-af98-e108d7a0419d",
       "type": "distribution",
       "code": "",
       "name": "저압 배전반",
-      "x": 12.12,
+      "x": 9.9,
       "z": -0.4,
       "rotation": 90,
       "width": 2.4,
@@ -137,30 +99,55 @@ window.FEMSDefaultLayout = {
       "parentId": "eq-76e7671c-d158-48f4-af98-e108d7a0419d"
     },
     {
-      "id": "eq-5a9dedf6-1f97-40ac-9f02-8a74eadec84b",
-      "type": "asset-1f85db55-daa8-4d1a-aa88-9dd99f47f487",
+      "id": "eq-e60ce7b2-4c36-4cf1-9970-49a2f900bee7",
+      "type": "transformer",
       "code": "",
-      "name": "펌프2",
-      "x": 20.16,
-      "z": 3.51,
-      "rotation": 90,
-      "width": 1,
-      "depth": 1.999,
-      "height": 1,
+      "name": "변압기(1)",
+      "x": 3.39,
+      "z": 11.08,
+      "rotation": 0,
+      "width": 2.4,
+      "depth": 1.8,
+      "height": 2.4,
+      "parentId": "eq-745a5afa-3d39-4024-9e4f-338e21112cdd"
+    },
+    {
+      "id": "eq-f79f3849-27ea-46fc-b62c-155aad8f4a94",
+      "type": "asset-d948b5b9-ff9d-402c-b6f5-1fa436bae50a",
+      "code": "",
+      "name": "Utility_1F_Ect_Pump L02",
+      "x": 19.5,
+      "z": 6.5,
+      "rotation": 0,
+      "width": 1.00050025013,
+      "depth": 2,
+      "height": 1.00050025013,
       "parentId": "eq-a7943e0b-c305-447d-a96f-734ca7ad240a"
     },
     {
-      "id": "eq-b50805b0-7097-47a5-8735-ff48cef5fa3a",
-      "type": "asset-1f85db55-daa8-4d1a-aa88-9dd99f47f487",
+      "id": "eq-7cbd6031-a617-4702-86c6-20045c23eb99",
+      "type": "asset-d948b5b9-ff9d-402c-b6f5-1fa436bae50a",
       "code": "",
-      "name": "펌프",
-      "x": 20.14,
-      "z": 1.43,
-      "rotation": 90,
-      "width": 1,
-      "depth": 1.999,
-      "height": 1,
+      "name": "Utility_1F_Ect_Pump L02(1)",
+      "x": 19.54,
+      "z": 1.09,
+      "rotation": 0,
+      "width": 1.00050025013,
+      "depth": 2,
+      "height": 1.00050025013,
       "parentId": "eq-a7943e0b-c305-447d-a96f-734ca7ad240a"
+    },
+    {
+      "id": "eq-7a688d26-21ec-4f4e-bfd8-87e0f1cac7ee",
+      "type": "asset-fdf07816-8fa8-44b5-9142-014dccd2c2c0",
+      "code": "",
+      "name": "공기 압축기(150HP)",
+      "x": 7,
+      "z": 23,
+      "rotation": 0,
+      "width": 2.83813364055,
+      "depth": 2,
+      "height": 2.02995391705
     }
   ],
   "networks": [
@@ -246,93 +233,6 @@ window.FEMSDefaultLayout = {
       ]
     },
     {
-      "parentId": "eq-7005d82b-a46f-41df-9b13-ecb2eed2d360",
-      "root": "n0",
-      "nodes": [
-        {
-          "id": "n0",
-          "equipmentId": "eq-7005d82b-a46f-41df-9b13-ecb2eed2d360",
-          "offset": {
-            "x": 0,
-            "z": 0
-          }
-        },
-        {
-          "id": "n3",
-          "equipmentId": "eq-144b7596-d4cf-4f89-a317-3f706a15961a",
-          "offset": {
-            "x": 0,
-            "z": 0
-          }
-        }
-      ],
-      "edges": [
-        {
-          "id": "net:eq-7005d82b-a46f-41df-9b13-ecb2eed2d360:n1",
-          "from": "n0",
-          "to": "n3",
-          "bends": [
-            {
-              "x": 3,
-              "z": -0.5
-            }
-          ],
-          "color": "#2563eb",
-          "diameter": 0.2,
-          "segmentColors": [
-            "#2563eb",
-            "#2563eb"
-          ]
-        }
-      ]
-    },
-    {
-      "parentId": "eq-144b7596-d4cf-4f89-a317-3f706a15961a",
-      "root": "n0",
-      "nodes": [
-        {
-          "id": "n0",
-          "equipmentId": "eq-144b7596-d4cf-4f89-a317-3f706a15961a",
-          "offset": {
-            "x": 0,
-            "z": 0
-          }
-        },
-        {
-          "id": "n2",
-          "equipmentId": "eq-e60ce7b2-4c36-4cf1-9970-49a2f900bee7",
-          "offset": {
-            "x": 0,
-            "z": 0
-          }
-        }
-      ],
-      "edges": [
-        {
-          "id": "net:eq-144b7596-d4cf-4f89-a317-3f706a15961a:n1",
-          "from": "n0",
-          "to": "n2",
-          "bends": [
-            {
-              "x": -0.86,
-              "z": 7.06
-            },
-            {
-              "x": 3.39,
-              "z": 7.06
-            }
-          ],
-          "color": "#2563eb",
-          "diameter": 0.2,
-          "segmentColors": [
-            "#f97316",
-            "#f97316",
-            "#f97316"
-          ]
-        }
-      ]
-    },
-    {
       "parentId": "eq-e60ce7b2-4c36-4cf1-9970-49a2f900bee7",
       "root": "n0",
       "nodes": [
@@ -360,25 +260,20 @@ window.FEMSDefaultLayout = {
           "to": "n3",
           "bends": [
             {
-              "x": 10.5,
-              "z": 14.58
+              "x": 9.9,
+              "z": 11.08
             },
             {
-              "x": 10.5,
-              "z": 8.81
-            },
-            {
-              "x": 12.12,
-              "z": 8.81
+              "x": 9.9,
+              "z": -0.4
             }
           ],
           "color": "#2563eb",
           "diameter": 0.2,
           "segmentColors": [
             "#eab308",
-            "#0ea5e9",
-            "#2563eb",
-            "#0d9488"
+            "#eab308",
+            "#2563eb"
           ]
         }
       ]
@@ -496,6 +391,52 @@ window.FEMSDefaultLayout = {
       ]
     },
     {
+      "parentId": "eq-745a5afa-3d39-4024-9e4f-338e21112cdd",
+      "root": "n0",
+      "nodes": [
+        {
+          "id": "n0",
+          "equipmentId": "eq-745a5afa-3d39-4024-9e4f-338e21112cdd",
+          "offset": {
+            "x": 0,
+            "z": 0
+          }
+        },
+        {
+          "id": "n3",
+          "equipmentId": "eq-e60ce7b2-4c36-4cf1-9970-49a2f900bee7",
+          "offset": {
+            "x": 0,
+            "z": 0
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "net:eq-745a5afa-3d39-4024-9e4f-338e21112cdd:n1",
+          "from": "n0",
+          "to": "n3",
+          "bends": [
+            {
+              "x": 3.39,
+              "z": -9.13
+            },
+            {
+              "x": 3.39,
+              "z": 0.54
+            }
+          ],
+          "color": "#2563eb",
+          "diameter": 0.2,
+          "segmentColors": [
+            "#2563eb",
+            "#2563eb",
+            "#2563eb"
+          ]
+        }
+      ]
+    },
+    {
       "parentId": "eq-a7943e0b-c305-447d-a96f-734ca7ad240a",
       "root": "n0",
       "nodes": [
@@ -508,13 +449,8 @@ window.FEMSDefaultLayout = {
           }
         },
         {
-          "id": "n1",
-          "x": 17.71,
-          "z": 3.51
-        },
-        {
-          "id": "n4",
-          "equipmentId": "eq-5a9dedf6-1f97-40ac-9f02-8a74eadec84b",
+          "id": "n3",
+          "equipmentId": "eq-f79f3849-27ea-46fc-b62c-155aad8f4a94",
           "offset": {
             "x": 0,
             "z": 0
@@ -522,7 +458,7 @@ window.FEMSDefaultLayout = {
         },
         {
           "id": "n6",
-          "equipmentId": "eq-b50805b0-7097-47a5-8735-ff48cef5fa3a",
+          "equipmentId": "eq-7cbd6031-a617-4702-86c6-20045c23eb99",
           "offset": {
             "x": 0,
             "z": 0
@@ -533,15 +469,15 @@ window.FEMSDefaultLayout = {
         {
           "id": "net:eq-a7943e0b-c305-447d-a96f-734ca7ad240a:n1",
           "from": "n0",
-          "to": "n1",
+          "to": "n3",
           "bends": [
             {
-              "x": 17.71,
+              "x": 17.39,
               "z": 5
             },
             {
-              "x": 17.71,
-              "z": 3.51
+              "x": 17.39,
+              "z": 6.5
             }
           ],
           "color": "#2563eb",
@@ -553,50 +489,70 @@ window.FEMSDefaultLayout = {
           ]
         },
         {
-          "id": "net:eq-a7943e0b-c305-447d-a96f-734ca7ad240a:n2",
-          "from": "n1",
-          "to": "n4",
-          "bends": [
-            {
-              "x": 17.71,
-              "z": 3.51
-            },
-            {
-              "x": 17.71,
-              "z": 3.51
-            },
-            {
-              "x": 20.16,
-              "z": 3.51
-            }
-          ],
-          "color": "#2563eb",
-          "diameter": 0.2,
-          "segmentColors": [
-            "#2563eb",
-            "#2563eb",
-            "#2563eb",
-            "#2563eb"
-          ]
-        },
-        {
-          "id": "net:eq-a7943e0b-c305-447d-a96f-734ca7ad240a:n5",
-          "from": "n1",
+          "id": "net:eq-a7943e0b-c305-447d-a96f-734ca7ad240a:n4",
+          "from": "n0",
           "to": "n6",
           "bends": [
             {
-              "x": 17.71,
-              "z": 1.43
+              "x": 17.39,
+              "z": 5
+            },
+            {
+              "x": 17.39,
+              "z": 1.09
+            },
+            {
+              "x": 19.54,
+              "z": 1.09
             }
           ],
           "color": "#2563eb",
           "diameter": 0.2,
           "segmentColors": [
+            "#2563eb",
+            "#2563eb",
             "#2563eb",
             "#2563eb"
           ]
         }
       ]
     }
-  ]
+  ],
+  "project": {
+    "id": "b46250ba-c3f9-4084-b314-c8ed58c0d3ce",
+    "kind": "new",
+    "baseRevision": "94a6dfa7608e0bca4e5c7d8e104298a98421eb31fb049e4bede539dfed8c2e68",
+    "assets": [
+      {
+        "type": "asset-d948b5b9-ff9d-402c-b6f5-1fa436bae50a",
+        "name": "Utility_1F_Ect_Pump L02",
+        "en": "",
+        "custom": true,
+        "code": "",
+        "group": "추가 에셋",
+        "color": "#71869a",
+        "description": "프로젝트에 등록된 GLB 설비입니다.",
+        "model": "assets/equipment/asset-d948b5b9-ff9d-402c-b6f5-1fa436bae50a/model.glb",
+        "sha256": "ff54611ac901169d86992bc525493c76063d21e0beab546fda8b3bb1f7a0041c",
+        "width": 1.00050025013,
+        "depth": 2,
+        "height": 1.00050025013
+      },
+      {
+        "type": "asset-fdf07816-8fa8-44b5-9142-014dccd2c2c0",
+        "name": "공기 압축기(150HP)",
+        "en": "",
+        "custom": true,
+        "code": "",
+        "group": "추가 에셋",
+        "color": "#71869a",
+        "description": "프로젝트에 등록된 GLB 설비입니다.",
+        "model": "assets/equipment/asset-fdf07816-8fa8-44b5-9142-014dccd2c2c0/model.glb",
+        "sha256": "1132a293c9bdebc014c4e720e327568a73890bb3cff452a47fa771335cae0889",
+        "width": 2.83813364055,
+        "depth": 2,
+        "height": 2.02995391705
+      }
+    ]
+  }
 };
