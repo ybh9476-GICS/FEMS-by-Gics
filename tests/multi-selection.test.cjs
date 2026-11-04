@@ -31,6 +31,19 @@ test('실제 목록 선택 처리에서 연속 Ctrl·Shift 선택 결과와 기�
   tree.choose('d',{shiftKey:true});assert.deepEqual(Array.from(tree.selectedIds),['c','d']);assert.equal(tree.anchor,'c');
   tree.choose('a',{shiftKey:true});assert.deepEqual(Array.from(tree.selectedIds),['a','b','c']);assert.equal(tree.selecting,false);
 });
+
+test('도면 최상위 항목은 Shift 범위 선택에 설비 ID로 포함되지 않는다',()=>{
+  const tree=Object.create(Tree.prototype);
+  Object.assign(tree,{selectedIds:['a'],anchor:'a',host:{querySelectorAll:()=>[{dataset:{}},{dataset:{id:'a'}},{dataset:{id:'b'}}]},focus(){},handlers:{select(id,ids){tree.selectedIds=ids;}}});
+  tree.choose('b',{shiftKey:true});assert.deepEqual(Array.from(tree.selectedIds),['a','b']);
+});
+
+test('도면 행에 드롭하면 최상위 부모(null)로 이동하며 계층 데이터는 조회 중 변경하지 않는다',()=>{
+  const tree=Object.create(Tree.prototype),row={getBoundingClientRect:()=>({top:10,bottom:40})};
+  Object.assign(tree,{documentRow:row,host:{parentElement:{getBoundingClientRect:()=>({left:0,right:250,top:0,bottom:400})}},state:{equipment:[{id:'a',parentId:'b'},{id:'b'}]}});
+  const target=tree.dropTarget({clientX:100,clientY:25});assert.equal(target.parentId,null);assert.equal(target.position,'inside');assert.equal(target.element,row);
+  assert.equal(tree.state.equipment[0].parentId,'b');assert.equal(tree.dropTarget({clientX:300,clientY:25}),null);
+});
 test('수정 키 클릭은 선택만 하고 선택된 항목 드래그는 전체 선택을 전달한다',()=>{
   const tree=Object.create(Tree.prototype),listeners={},classes=new Set(),row={dataset:{id:'a'},classList:{toggle(name,on){if(on)classes.add(name);else classes.delete(name);},remove(name){classes.delete(name);}},addEventListener:(key,fn)=>listeners[key]=fn,setPointerCapture(){},hasPointerCapture:()=>false};
   const moves=[];Object.assign(tree,{selectedIds:['a','b'],state:{equipment:[{id:'a'},{id:'b'},{id:'c'},{id:'child',parentId:'b'}]},collapsed:new Set(['c']),host:{querySelectorAll:()=>[row],parentElement:{getBoundingClientRect:()=>({top:0,bottom:200})}},clearTarget(){},showTarget(){},dropTarget:()=>({parentId:'c',position:'inside'}),handlers:{error:message=>assert.fail(message),reparent:(...args)=>moves.push(args)}});

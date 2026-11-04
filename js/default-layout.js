@@ -4,15 +4,15 @@ window.FEMSDefaultLayout = {
   "version": 2,
   "name": "FEMS 설비 배치 예시",
   "site": {
-    "width": 60,
-    "depth": 40
+    "width": 100,
+    "depth": 100
   },
   "equipment": [
     {
       "id": "eq-f9140d03-45e0-4d88-b0e0-09ae5a7f4172",
       "type": "tower",
       "code": "",
-      "name": "송전탑",
+      "name": "GRID 01",
       "x": -24.5,
       "z": -0.5,
       "rotation": 0,
@@ -50,7 +50,7 @@ window.FEMSDefaultLayout = {
       "id": "eq-7005d82b-a46f-41df-9b13-ecb2eed2d360",
       "type": "tower",
       "code": "",
-      "name": "송전탑(1)",
+      "name": "GRID",
       "x": 3,
       "z": -10.5,
       "rotation": 0,
@@ -63,8 +63,8 @@ window.FEMSDefaultLayout = {
       "type": "receiving",
       "code": "",
       "name": "수전반(1)",
-      "x": -0.86,
-      "z": -0.5,
+      "x": -0.54,
+      "z": -0.54,
       "rotation": 0,
       "width": 2.4,
       "depth": 1.2,
@@ -76,8 +76,8 @@ window.FEMSDefaultLayout = {
       "type": "transformer",
       "code": "",
       "name": "변압기(1)",
-      "x": 5.5,
-      "z": 8.81,
+      "x": 3.39,
+      "z": 14.58,
       "rotation": 0,
       "width": 2.4,
       "depth": 1.8,
@@ -135,6 +135,32 @@ window.FEMSDefaultLayout = {
       "depth": 0.35,
       "height": 1.4,
       "parentId": "eq-76e7671c-d158-48f4-af98-e108d7a0419d"
+    },
+    {
+      "id": "eq-5a9dedf6-1f97-40ac-9f02-8a74eadec84b",
+      "type": "asset-1f85db55-daa8-4d1a-aa88-9dd99f47f487",
+      "code": "",
+      "name": "펌프2",
+      "x": 20.16,
+      "z": 3.51,
+      "rotation": 90,
+      "width": 1,
+      "depth": 1.999,
+      "height": 1,
+      "parentId": "eq-a7943e0b-c305-447d-a96f-734ca7ad240a"
+    },
+    {
+      "id": "eq-b50805b0-7097-47a5-8735-ff48cef5fa3a",
+      "type": "asset-1f85db55-daa8-4d1a-aa88-9dd99f47f487",
+      "code": "",
+      "name": "펌프",
+      "x": 20.14,
+      "z": 1.43,
+      "rotation": 90,
+      "width": 1,
+      "depth": 1.999,
+      "height": 1,
+      "parentId": "eq-a7943e0b-c305-447d-a96f-734ca7ad240a"
     }
   ],
   "networks": [
@@ -181,7 +207,7 @@ window.FEMSDefaultLayout = {
           "color": "#2563eb",
           "diameter": 0.2,
           "segmentColors": [
-            "#2563eb",
+            "#dc2626",
             "#16a34a"
           ]
         },
@@ -210,7 +236,7 @@ window.FEMSDefaultLayout = {
           "color": "#2563eb",
           "diameter": 0.2,
           "segmentColors": [
-            "#2563eb",
+            "#dc2626",
             "#0ea5e9",
             "#2563eb",
             "#2563eb",
@@ -289,19 +315,19 @@ window.FEMSDefaultLayout = {
           "bends": [
             {
               "x": -0.86,
-              "z": 8.27
+              "z": 7.06
             },
             {
-              "x": 5.5,
-              "z": 8.27
+              "x": 3.39,
+              "z": 7.06
             }
           ],
           "color": "#2563eb",
           "diameter": 0.2,
           "segmentColors": [
-            "#2563eb",
-            "#2563eb",
-            "#2563eb"
+            "#f97316",
+            "#f97316",
+            "#f97316"
           ]
         }
       ]
@@ -335,14 +361,24 @@ window.FEMSDefaultLayout = {
           "bends": [
             {
               "x": 10.5,
+              "z": 14.58
+            },
+            {
+              "x": 10.5,
+              "z": 8.81
+            },
+            {
+              "x": 12.12,
               "z": 8.81
             }
           ],
           "color": "#2563eb",
           "diameter": 0.2,
           "segmentColors": [
+            "#eab308",
+            "#0ea5e9",
             "#2563eb",
-            "#2563eb"
+            "#0d9488"
           ]
         }
       ]
@@ -448,6 +484,109 @@ window.FEMSDefaultLayout = {
             {
               "x": 13.44,
               "z": -2.81
+            }
+          ],
+          "color": "#2563eb",
+          "diameter": 0.2,
+          "segmentColors": [
+            "#2563eb",
+            "#2563eb"
+          ]
+        }
+      ]
+    },
+    {
+      "parentId": "eq-a7943e0b-c305-447d-a96f-734ca7ad240a",
+      "root": "n0",
+      "nodes": [
+        {
+          "id": "n0",
+          "equipmentId": "eq-a7943e0b-c305-447d-a96f-734ca7ad240a",
+          "offset": {
+            "x": 0,
+            "z": 0
+          }
+        },
+        {
+          "id": "n1",
+          "x": 17.71,
+          "z": 3.51
+        },
+        {
+          "id": "n4",
+          "equipmentId": "eq-5a9dedf6-1f97-40ac-9f02-8a74eadec84b",
+          "offset": {
+            "x": 0,
+            "z": 0
+          }
+        },
+        {
+          "id": "n6",
+          "equipmentId": "eq-b50805b0-7097-47a5-8735-ff48cef5fa3a",
+          "offset": {
+            "x": 0,
+            "z": 0
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "net:eq-a7943e0b-c305-447d-a96f-734ca7ad240a:n1",
+          "from": "n0",
+          "to": "n1",
+          "bends": [
+            {
+              "x": 17.71,
+              "z": 5
+            },
+            {
+              "x": 17.71,
+              "z": 3.51
+            }
+          ],
+          "color": "#2563eb",
+          "diameter": 0.2,
+          "segmentColors": [
+            "#2563eb",
+            "#2563eb",
+            "#2563eb"
+          ]
+        },
+        {
+          "id": "net:eq-a7943e0b-c305-447d-a96f-734ca7ad240a:n2",
+          "from": "n1",
+          "to": "n4",
+          "bends": [
+            {
+              "x": 17.71,
+              "z": 3.51
+            },
+            {
+              "x": 17.71,
+              "z": 3.51
+            },
+            {
+              "x": 20.16,
+              "z": 3.51
+            }
+          ],
+          "color": "#2563eb",
+          "diameter": 0.2,
+          "segmentColors": [
+            "#2563eb",
+            "#2563eb",
+            "#2563eb",
+            "#2563eb"
+          ]
+        },
+        {
+          "id": "net:eq-a7943e0b-c305-447d-a96f-734ca7ad240a:n5",
+          "from": "n1",
+          "to": "n6",
+          "bends": [
+            {
+              "x": 17.71,
+              "z": 1.43
             }
           ],
           "color": "#2563eb",

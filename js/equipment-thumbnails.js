@@ -10,7 +10,7 @@
     const camera = new T.OrthographicCamera(-2.15, 2.15, 1.65, -1.65, .1, 40);
     camera.position.set(6, 4, 6);camera.lookAt(0, 0, 0);
     try {
-      for (const def of root.FEMSCatalog.catalog) {
+      for (const def of root.FEMSCatalog.builtin) {
         const model = root.FEMSEquipment.make(def.type);
         const scale = 2.6 / Math.max(def.width, def.height, def.depth);
         model.scale.set(def.width * scale, def.height * scale, def.depth * scale);

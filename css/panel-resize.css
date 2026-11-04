@@ -1,0 +1,15 @@
+.workspace { position: relative; --left-default: 252px; --right-default: 276px; }
+.panel-resizer { display: none; }
+@media (min-width: 761px) {
+  .workspace { grid-template-columns: var(--left-width, var(--left-default)) minmax(320px, 1fr) var(--right-width, var(--right-default)); }
+  .panel-resizer { display: block; position: absolute; top: 0; bottom: 0; width: 10px; z-index: 25; cursor: col-resize; touch-action: none; outline: none; }
+  .panel-resizer-left { left: var(--left-width, var(--left-default)); transform: translateX(-50%); }
+  .panel-resizer-right { right: var(--right-width, var(--right-default)); transform: translateX(50%); }
+  .panel-resizer::after { content: ''; position: absolute; left: 4px; top: 0; bottom: 0; width: 2px; background: transparent; transition: background .12s; }
+  .panel-resizer:hover::after, .panel-resizer:focus-visible::after, .panel-resizer.is-resizing::after { background: #227b69; }
+  .panel-resizer:focus-visible { background: #227b6918; }
+  .inspector { min-width: 0; }
+}
+@media (min-width: 1600px) { .workspace { --left-default: 270px; --right-default: 300px; } }
+@media (min-width: 761px) and (max-width: 1150px) { .workspace { --left-default: 212px; --right-default: 236px; } }
+body.panel-resizing, body.panel-resizing * { cursor: col-resize !important; user-select: none !important; }

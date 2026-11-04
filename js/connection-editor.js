@@ -124,7 +124,7 @@
       const state=this.api.state(),line=this.selection?L.route(state,this.selection.id):null;
       if(!line)this.selection=null;
       const visible=(view==='plan'||view==='3d')&&!!line;$('connection-properties').hidden=!visible;
-      $('inspector-title').textContent=visible?'연결선 속성':'설비 속성';
+      $('inspector-title').textContent='PROPERTIES';
       if(!visible)return false;
       $('properties').hidden=true;$('inspector-empty').hidden=true;
       for(const action of ['corner','add','delete','optimize','reset'])$('connection-'+action).hidden=false;

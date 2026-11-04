@@ -60,7 +60,7 @@ test('회전한 설비도 부지 경계를 지키고 반대 좌표를 보존한�
   assert.ok(Math.abs(pos.x-(30-M.extents(item).x))<.001);assert.equal(pos.z,item.z);
 });
 
-function sceneFixture(plan = false) {
+function sceneFixture(plan = false, axis = 'x') {
   const {gizmo,camera,rayAt,handleAt}=setup(.6,.77,plan);
   const scene=Object.create(context.FEMSScene.prototype), h=new M.History(M.demo()), id=h.current.equipment[2].id;
   const listeners={}, previews=[];
@@ -71,8 +71,42 @@ function sceneFixture(plan = false) {
     renderer:{domElement:{addEventListener(name,fn){listeners[name]=fn;},setPointerCapture(){},hasPointerCapture(){return false;}}},
     invalidate(){},updateGizmo(){},pick(){return null;},floor(){return new T.Vector3();},
     setPointer(e){this.ray=rayAt(e.world);}});
-  scene.bind();return {scene,h,listeners,previews,start:handleAt('x')};
+  scene.bind();return {scene,h,listeners,previews,start:axis==='xz'?gizmo.planeHandle.getWorldPosition(new T.Vector3()):handleAt(axis)};
 }
+
+test('XZ 평면 핸들은 여러 시점과 확대율에서 두 좌표를 함께 이동하며 시작점이 튀지 않는다',()=>{
+  for(const plan of [false,true])for(const yaw of [0,.6,Math.PI/2,-1.2])for(const zoom of [.5,1,3]){
+    const {gizmo,camera,item,rayAt}=setup(yaw,.77,plan);camera.zoom=zoom;camera.updateProjectionMatrix();
+    gizmo.update(item,new T.Vector3(item.x,0,item.z),camera,700,true);
+    const start=gizmo.planeHandle.getWorldPosition(new T.Vector3());assert.equal(gizmo.pick(rayAt(start)),'xz');
+    const drag=gizmo.begin('xz',rayAt(start).ray,camera,item);
+    for(const [dx,dz] of [[0,0],[2.35,-1.27],[-3,4]]){
+      const pos=gizmo.positionFor(drag,rayAt(start.clone().add(new T.Vector3(dx,0,dz))).ray,{width:60,depth:40});
+      assert.ok(Math.abs(pos.x-item.x-dx)<1e-6);assert.ok(Math.abs(pos.z-item.z-dz)<1e-6);
+    }
+    item.rotation=37;const bounded=gizmo.begin('xz',rayAt(start).ray,camera,item);
+    const boundaryRay=new T.Ray(start.clone().add(new T.Vector3(100,100,-100)),new T.Vector3(0,-1,0));
+    const pos=gizmo.positionFor(bounded,boundaryRay,{width:60,depth:40});
+    assert.ok(Math.abs(pos.x-(30-M.extents(item).x))<.001);assert.ok(Math.abs(pos.z-(-20+M.extents(item).z))<.001);
+    gizmo.highlight('xz');assert.equal(gizmo.planeHandle.material.opacity,.75);
+    gizmo.update(null,null,camera,700,true);assert.equal(gizmo.pick(rayAt(start)),null);
+  }
+});
+
+test('XZ 드래그는 3D·평면도에서 한 번에 실행 취소하고 취소·캡처 유실 시 두 좌표를 복원한다',()=>{
+  for(const plan of [false,true])for(const action of ['commit','cancelDrag','pointercancel','lostpointercapture','click']){
+    const {scene,h,listeners,start}=sceneFixture(plan,'xz'),before=M.clone(h.current);
+    scene.connections={pick(){throw new Error('평면 핸들 아래 연결선이 선택됨');}};
+    listeners.pointerdown({button:0,pointerId:1,clientX:100,clientY:100,world:start});assert.equal(scene.drag.axis,'xz');
+    if(action!=='click')listeners.pointermove({pointerId:1,clientX:130,clientY:120,world:start.clone().add(new T.Vector3(2,0,3))});
+    if(action==='commit'||action==='click')listeners.pointerup({button:0,pointerId:1});
+    else if(action==='cancelDrag')scene.cancelDrag();else listeners[action]();
+    if(action==='commit'){
+      assert.equal(h.current.equipment[2].x,before.equipment[2].x+2);assert.equal(h.current.equipment[2].z,before.equipment[2].z+3);
+      assert.equal(h.past.length,1);h.undo();assert.deepEqual(h.current,before);
+    }else{assert.deepEqual(h.current,before);assert.equal(h.past.length,0);}
+  }
+});
 
 test('이동 모드를 켜지 않아도 기즈모 드래그가 실시간 반영되고 한 번의 실행 취소로 복원된다', () => {
   const {scene,h,listeners,previews,start}=sceneFixture(), before=M.clone(h.current);

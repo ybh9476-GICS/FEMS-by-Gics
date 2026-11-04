@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "type": "asset-1f85db55-daa8-4d1a-aa88-9dd99f47f487",
+      "name": "Utility_1F_Ect_Pump L02",
+      "en": "",
+      "custom": true,
+      "code": "",
+      "group": "추가 에셋",
+      "color": "#71869a",
+      "description": "프로젝트에 등록된 GLB 설비입니다.",
+      "model": "assets/equipment/asset-1f85db55-daa8-4d1a-aa88-9dd99f47f487/model.glb",
+      "width": 1,
+      "depth": 1.999,
+      "height": 1
+    }
+  ]
+}

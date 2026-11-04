@@ -28,6 +28,19 @@
         labelHost.appendChild(label);
         this.axes.set(axis, { direction, material, hit, label, color });
       }
+      const planeGeometry = new T.PlaneGeometry(.3, .3);
+      planeGeometry.rotateX(-Math.PI / 2);
+      this.planeColor = '#45a879';
+      this.planeHandle = new T.Mesh(planeGeometry, new T.MeshBasicMaterial({
+        color: this.planeColor, transparent: true, opacity: .45, side: T.DoubleSide, depthTest: false, depthWrite: false
+      }));
+      // The .3-wide handle starts at the pivot, with its edges touching X and Z.
+      this.planeHandle.position.set(.15, 0, .15);
+      this.planeHandle.userData.axis = 'xz';this.planeHandle.renderOrder = 1001;
+      this.planeBorder = new T.LineSegments(new T.EdgesGeometry(planeGeometry),
+        new T.LineBasicMaterial({color: this.planeColor, depthTest: false, depthWrite: false}));
+      this.planeBorder.renderOrder = 1002;
+      this.planeHandle.add(this.planeBorder);this.group.add(this.planeHandle);
     }
     update(item, position, camera, height, visible) {
       this.group.visible = !!item && visible;
@@ -59,12 +72,21 @@
     }
     highlight(active) {
       for (const [name, axis] of this.axes) axis.material.color.set(name === active ? '#e6ad26' : axis.color);
+      this.planeHandle.material.color.set(active === 'xz' ? '#e6ad26' : this.planeColor);
+      this.planeBorder.material.color.copy(this.planeHandle.material.color);
+      this.planeHandle.material.opacity = active === 'xz' ? .75 : .45;
     }
     pick(raycaster) {
       if (!this.group.visible) return null;
+      if (raycaster.intersectObject(this.planeHandle, false).length) return 'xz';
       return raycaster.intersectObjects(Array.from(this.axes.values(), axis => axis.hit), false)[0]?.object.userData.axis || null;
     }
     begin(axis, ray, camera, item) {
+      if (axis === 'xz') {
+        const plane = new T.Plane().setFromNormalAndCoplanarPoint(new T.Vector3(0, 1, 0), this.group.position);
+        const start = ray.intersectPlane(plane, new T.Vector3());
+        return start ? { axis, plane, start, item: M.clone(item) } : null;
+      }
       const direction = this.axes.get(axis).direction;
       const normal = camera.position.clone().sub(this.group.position);
       normal.addScaledVector(direction, -normal.dot(direction));
@@ -77,6 +99,9 @@
       const point = ray.intersectPlane(drag.plane, new T.Vector3());
       if (!point) return null;
       const axis = drag.axis, item = drag.item;
+      if (axis === 'xz') return M.clampPosition(item,
+        Math.round((item.x + point.x - drag.start.x) * 100) / 100,
+        Math.round((item.z + point.z - drag.start.z) * 100) / 100, site);
       const value = Math.round((item[axis] + point[axis] - drag.start[axis]) * 100) / 100;
       const clamped = M.clampPosition(item, axis === 'x' ? value : item.x, axis === 'z' ? value : item.z, site);
       // Preserve the untouched coordinate exactly, including imported precision.

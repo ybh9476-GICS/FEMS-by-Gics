@@ -11,6 +11,17 @@ for (const file of ['vendor/three.js', 'js/scene.js']) {
 }
 const T = context.THREE, Scene = context.FEMSScene;
 
+test('큰 바닥의 전체 보기·줌·이동은 기존 500m·120m 제한을 넘고 모서리가 화면에 들어온다',()=>{
+  for(const mode of ['plan','3d'])for(const size of [.1,100000]) {
+    const {scene}=fixture(mode);scene.state.site={width:size,depth:size};scene.fit();
+    for(const x of [-size/2,size/2])for(const z of [-size/2,size/2]) {
+      const p=new T.Vector3(x,0,z).project(scene.camera);
+      assert.ok(Math.abs(p.x)<=1&&Math.abs(p.y)<=1&&Math.abs(p.z)<=1,JSON.stringify({mode,size,p}));
+    }
+    if(size>500){const radius=scene.radius;scene.zoom(1.18);assert.ok(scene.radius>radius);scene.pan(400,400);assert.ok(Math.abs(scene.target.x)>120||Math.abs(scene.target.z)>120);}
+  }
+});
+
 function fixture(mode) {
   const listeners = {}, scene = Object.create(Scene.prototype);
   const item = { id: 'test', x: 0, z: 0, width: 2, depth: 2, height: 2, rotation: 0 };
@@ -31,6 +42,19 @@ function fixture(mode) {
 }
 
 for (const mode of ['plan', '3d']) {
+  test(`${mode}: 썸네일 드롭은 한 번 배치하고 화면 밖·외부 파일은 배치하지 않는다`,()=>{
+    const {scene,listeners}=fixture(mode),placed=[];
+    scene.armed='tower';scene.ghost=new T.Object3D();scene.handlers.place=(...args)=>placed.push(args);
+    const event={clientX:240,clientY:260,preventDefault(){this.prevented=true;},dataTransfer:{types:['application/x-fems-equipment'],getData:()=> 'tower'}};
+    listeners.dragover(event);assert.equal(event.dataTransfer.dropEffect,'copy');assert.equal(scene.ghost.visible,true);
+    listeners.drop(event);assert.deepEqual(placed,[['tower',2,3]]);assert.equal(scene.ghost.visible,false);
+    listeners.dragover({...event,clientX:9999});assert.equal(event.dataTransfer.dropEffect,'none');assert.equal(scene.ghost.visible,false);
+    listeners.drop({...event,clientX:9999});listeners.drop({...event,dataTransfer:{types:['Files']}});assert.equal(placed.length,1);
+    listeners.dragover(event);listeners.dragleave();assert.equal(scene.ghost.visible,false);
+    // Existing click-to-place remains available without the placement help overlay.
+    const click={button:0,pointerId:1,clientX:240,clientY:260};listeners.pointerdown(click);listeners.pointerup(click);
+    assert.equal(placed.length,2);
+  });
   test(`${mode}: 이름표 클릭은 설비 선택, 드래그는 화면 이동이며 숨긴 이름표는 선택하지 않는다`, () => {
     const {scene,listeners}=fixture(mode), label={hidden:false,textContent:'',style:{},getBoundingClientRect:()=>({left:180,right:220,top:180,bottom:220})};
     scene.showLabels=true;scene.labels=new Map([['test',label]]);

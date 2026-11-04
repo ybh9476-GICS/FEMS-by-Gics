@@ -71,7 +71,7 @@ test('흰색 포인트는 정렬 후 정확히 선택되고 원위치 복귀는 
 });
 test('3D 속성 패널은 지름·선분 색상을 편집하고 포인트·경로 조작도 표시한다',()=>{
   const {editor,history,initial,id,elements}=fixture();editor.select({id,kind:'segment',index:1});
-  assert.equal(editor.render('3d'),true);assert.equal(elements.get('inspector-title').textContent,'연결선 속성');
+  assert.equal(editor.render('3d'),true);assert.equal(elements.get('inspector-title').textContent,'PROPERTIES');
   for(const action of ['corner','add','delete','optimize','reset'])assert.equal(elements.get('connection-'+action).hidden,false);
   editor.changeStyle({color:'#dc2626'});assert.deepEqual(L.route(history.current,id).segmentColors,['#2563eb','#dc2626','#2563eb']);
   const input=elements.get('connection-diameter');input.id='connection-diameter';input.valueAsNumber=.4;editor.previewNumeric(input);editor.finishNumeric(true);

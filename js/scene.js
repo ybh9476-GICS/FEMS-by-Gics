@@ -27,9 +27,9 @@
       if(siteKey!==this.siteKey){this.siteKey=siteKey;if(this.ground){this.scene.remove(this.ground);root.FEMSEquipment.dispose(this.ground);}
         this.ground=new T.Group();
         const floor=new T.Mesh(new T.BoxGeometry(state.site.width,.12,state.site.depth),new T.MeshStandardMaterial({color:'#e0e8e7',roughness:1}));floor.position.y=-.09;floor.receiveShadow=true;this.ground.add(floor);
-        const points=[];
-        for(let x=-state.site.width/2;x<=state.site.width/2;x++)points.push(x,-.022,-state.site.depth/2,x,-.022,state.site.depth/2);
-        for(let z=-state.site.depth/2;z<=state.site.depth/2;z++)points.push(-state.site.width/2,-.022,z,state.site.width/2,-.022,z);
+        const points=[],step=M.siteGridStep(state.site);
+        for(let x=-state.site.width/2;x<=state.site.width/2;x+=step)points.push(x,-.022,-state.site.depth/2,x,-.022,state.site.depth/2);
+        for(let z=-state.site.depth/2;z<=state.site.depth/2;z+=step)points.push(-state.site.width/2,-.022,z,state.site.width/2,-.022,z);
         const grid=new T.LineSegments(new T.BufferGeometry().setAttribute('position',new T.Float32BufferAttribute(points,3)),new T.LineBasicMaterial({color:'#c4d3d1',transparent:true,opacity:.6}));this.ground.add(grid);
         const edge=new T.LineSegments(new T.EdgesGeometry(floor.geometry),new T.LineBasicMaterial({color:'#aec4bc'}));edge.position.copy(floor.position);this.ground.add(edge);this.scene.add(this.ground);
       }
@@ -37,7 +37,7 @@
       for(const [id,model] of this.models)if(!active.has(id)||state.equipment.find(item=>item.id===id)?.type!==model.userData.equipmentType) {this.scene.remove(model);root.FEMSEquipment.dispose(model);this.models.delete(id);this.labels.get(id).remove();this.labels.delete(id);const footprint=this.footprints.get(id);this.scene.remove(footprint);root.FEMSEquipment.dispose(footprint);this.footprints.delete(id);}
       for(const item of state.equipment){
         let model=this.models.get(item.id);
-        if(!model){model=root.FEMSEquipment.make(item.type);model.userData.equipmentType=item.type;model.traverse(part=>part.userData.equipmentId=item.id);this.models.set(item.id,model);this.scene.add(model);
+        if(!model){model=root.FEMSEquipment.make(item.type,loaded=>{if(this.models.get(item.id)!==loaded)return;loaded.traverse(part=>part.userData.equipmentId=item.id);this.labels.get(item.id).title=loaded.userData.assetError||'';this.updateSelection();this.invalidate();});model.userData.equipmentType=item.type;model.traverse(part=>part.userData.equipmentId=item.id);this.models.set(item.id,model);this.scene.add(model);
           const label=document.createElement('span');label.className='object-label';this.labelHost.appendChild(label);this.labels.set(item.id,label);
           const footprint=new T.Mesh(new T.BoxGeometry(1,.025,1),new T.MeshBasicMaterial({color:root.FEMSCatalog.get(item.type).color}));footprint.userData.equipmentId=item.id;this.footprints.set(item.id,footprint);this.scene.add(footprint);}
         model.scale.set(item.width,item.height,item.depth);model.position.set(item.x,0,item.z);model.rotation.y=item.rotation*Math.PI/180;model.visible=this.mode==='3d';
@@ -106,18 +106,18 @@
     }
     updateCursor(){this.host.style.cursor=this.drag?.item?'default':this.drag?.moved&&(this.drag.button===2||!this.armed)?'grabbing':this.armed?'crosshair':this.move||this.selected||this.connectionSelection||this.hovered||this.hoverLink||this.hoverAxis?'default':'grab';}
     resize(){const w=this.host.clientWidth,h=this.host.clientHeight;if(!w||!h)return;this.width=w;this.height=h;this.renderer.setSize(w,h);this.perspective.aspect=w/h;this.perspective.updateProjectionMatrix();this.updateCamera();}
-    updateCamera(){const aspect=(this.width||1)/(this.height||1);this.ortho.left=-this.radius*aspect/2;this.ortho.right=this.radius*aspect/2;this.ortho.top=this.radius/2;this.ortho.bottom=-this.radius/2;this.ortho.updateProjectionMatrix();this.ortho.position.set(this.target.x,100,this.target.z);this.ortho.up.set(-Math.sin(this.planYaw),0,-Math.cos(this.planYaw));this.ortho.lookAt(this.target);
+    updateCamera(){this.perspective.far=Math.max(600,this.radius*4+Math.hypot(this.state?.site.width||60,this.state?.site.depth||40)*2);this.perspective.near=Math.max(.01,this.radius/10000);this.perspective.updateProjectionMatrix();const aspect=(this.width||1)/(this.height||1);this.ortho.left=-this.radius*aspect/2;this.ortho.right=this.radius*aspect/2;this.ortho.top=this.radius/2;this.ortho.bottom=-this.radius/2;this.ortho.updateProjectionMatrix();this.ortho.position.set(this.target.x,100,this.target.z);this.ortho.up.set(-Math.sin(this.planYaw),0,-Math.cos(this.planYaw));this.ortho.lookAt(this.target);
       this.perspective.position.set(this.target.x+this.radius*Math.sin(this.yaw)*Math.cos(this.pitch),this.radius*Math.sin(this.pitch),this.target.z+this.radius*Math.cos(this.yaw)*Math.cos(this.pitch));this.perspective.lookAt(this.target);this.camera.updateMatrixWorld();this.invalidate();}
-    fit(){this.target.set(0,0,0);this.yaw=.6;this.planYaw=0;this.pitch=.77;const width=this.state?.site.width||60,depth=this.state?.site.depth||40;const aspect=(this.width||1)/(this.height||1);this.radius=this.mode==='plan'?Math.max(depth*1.25,width/aspect*1.25):Math.max(depth*1.6,width/aspect*1.5,55);this.radius=Math.min(500,this.radius);this.updateCamera();}
-    zoom(direction){this.radius=Math.max(7,Math.min(500,this.radius*direction));this.updateCamera();}
+    fit(){this.target.set(0,0,0);this.yaw=.6;this.planYaw=0;this.pitch=.77;const width=this.state?.site.width||60,depth=this.state?.site.depth||40;const aspect=(this.width||1)/(this.height||1);const halfFov=Math.atan(Math.tan(19*Math.PI/180)*Math.min(1,aspect));this.radius=this.mode==='plan'?Math.max(depth*1.25,width/aspect*1.25):Math.hypot(width,depth)/2/Math.sin(halfFov)*1.1;this.updateCamera();}
+    zoom(direction){const size=Math.max(this.state?.site.width||60,this.state?.site.depth||40),aspect=(this.width||1)/(this.height||1);this.radius=Math.max(Math.min(7,size/2),Math.min(Math.max(500,size*10/Math.min(1,aspect)),this.radius*direction));this.updateCamera();}
     pan(dx, dy) {
       const factor = this.radius / (this.height || 600) * .8;
       const yaw = this.mode === 'plan' ? this.planYaw : this.yaw;
       // Move the camera opposite the drag so the scene follows the pointer.
       this.target.x += (-dx * Math.cos(yaw) - dy * Math.sin(yaw)) * factor;
       this.target.z += (dx * Math.sin(yaw) - dy * Math.cos(yaw)) * factor;
-      this.target.x = Math.max(-120, Math.min(120, this.target.x));
-      this.target.z = Math.max(-120, Math.min(120, this.target.z));
+      this.target.x = Math.max(-Math.max(120,this.state?.site.width||60), Math.min(Math.max(120,this.state?.site.width||60), this.target.x));
+      this.target.z = Math.max(-Math.max(120,this.state?.site.depth||40), Math.min(Math.max(120,this.state?.site.depth||40), this.target.z));
     }
     floor(event,height=0){this.setPointer(event);const hit=new T.Vector3();return this.ray.ray.intersectPlane(height?new T.Plane(new T.Vector3(0,1,0),-height):this.floorPlane,hit);}
     connectionTolerance(event,height){
@@ -138,7 +138,30 @@
       }
       return null;
     }
+    placementPoint(event){
+      if(!this.armed||!this.state)return null;
+      const point=this.floor(event);
+      return point&&Math.abs(point.x)<=this.state.site.width/2&&Math.abs(point.z)<=this.state.site.depth/2?point:null;
+    }
+    previewPlacement(point){
+      this.ghost.visible=!!point;
+      if(point){const def=root.FEMSCatalog.get(this.armed),pos=M.clampPosition({...def,rotation:0},Math.round(point.x*2)/2,Math.round(point.z*2)/2,this.state.site);
+        this.ghost.scale.set(def.width,def.depth,1);this.ghost.position.set(pos.x,.04,pos.z);}
+      this.invalidate();
+    }
     bind(){const canvas=this.renderer.domElement;
+      const equipmentDrag=e=>this.armed&&Array.from(e.dataTransfer?.types||[]).includes('application/x-fems-equipment');
+      canvas.addEventListener('dragover',e=>{
+        if(!equipmentDrag(e))return;
+        e.preventDefault();const point=this.placementPoint(e);e.dataTransfer.dropEffect=point?'copy':'none';this.previewPlacement(point);
+      });
+      canvas.addEventListener('dragleave',()=>{if(this.armed)this.previewPlacement(null);});
+      canvas.addEventListener('drop',e=>{
+        if(!equipmentDrag(e))return;
+        e.preventDefault();const type=e.dataTransfer.getData('application/x-fems-equipment'),point=this.placementPoint(e);
+        this.previewPlacement(null);
+        if(type===this.armed&&point)this.handlers.place(type,Math.round(point.x*2)/2,Math.round(point.z*2)/2);
+      });
       canvas.addEventListener('contextmenu',e=>e.preventDefault());
       canvas.addEventListener('wheel',e=>{e.preventDefault();if(!this.drag?.axis&&!this.drag?.connection)this.zoom(Math.exp(Math.sign(e.deltaY)*.09));},{passive:false});
       canvas.addEventListener('pointerdown',e=>{if(this.drag||(e.button!==0&&e.button!==2)||(this.mode==='plan'&&e.button===2))return;
@@ -183,7 +206,7 @@
           return;
         }
         const point=this.floor(e);
-        if(this.armed&&point&&this.state){const def=root.FEMSCatalog.get(this.armed);const temp={...def,rotation:0};const pos=M.clampPosition(temp,Math.round(point.x*2)/2,Math.round(point.z*2)/2,this.state.site);this.ghost.scale.set(def.width,def.depth,1);this.ghost.position.set(pos.x,.04,pos.z);this.ghost.visible=true;this.invalidate();}
+        if(this.armed&&this.state)this.previewPlacement(this.placementPoint(e));
         const d=this.drag;if(!d){this.setHover(this.pickTarget(e));return;}const dx=e.clientX-d.lastX,dy=e.clientY-d.lastY;d.lastX=e.clientX;d.lastY=e.clientY;if(Math.hypot(e.clientX-d.x,e.clientY-d.y)>4)d.moved=true;
         this.updateCursor();
         if(!d.moved)return;

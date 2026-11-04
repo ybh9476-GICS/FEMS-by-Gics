@@ -1,7 +1,8 @@
 (function (root) {
   'use strict';
   const T = root.THREE;
-  function make(type) {
+  function make(type,onReady) {
+    if(root.FEMSCatalog?.get(type)?.custom)return root.FEMSAssets.make(type,onReady);
     const group = new T.Group(), materials = new Map();
     function material(color, metal = 0.2) { const key = color + ':' + metal; if (!materials.has(key)) materials.set(key, new T.MeshStandardMaterial({color, roughness:0.65, metalness:metal})); return materials.get(key); }
     function box(x,y,z,w,h,d,color,parent=group) { const mesh=new T.Mesh(new T.BoxGeometry(w,h,d),material(color));mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh; }
@@ -75,6 +76,7 @@
     const outer=new T.Group();outer.add(normalized);return outer;
   }
   function dispose(group) {
+    if(group.userData.assetInstance){root.FEMSAssets.disposeInstance(group);return;}
     const geometries=new Set(),materials=new Set();
     group.traverse(object=>{if(object.geometry)geometries.add(object.geometry);if(object.material)(Array.isArray(object.material)?object.material:[object.material]).forEach(m=>materials.add(m));});
     geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());

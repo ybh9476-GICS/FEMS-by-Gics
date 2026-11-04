@@ -3,14 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="theme-color" content="#183b38">
   <title>FEMS by Gics</title>
   <link rel="stylesheet" href="css/app.css">
   <link rel="stylesheet" href="css/number-scrub.css">
   <link rel="stylesheet" href="css/equipment-layout.css">
   <link rel="stylesheet" href="css/connections.css">
+  <link rel="stylesheet" href="css/panel-resize.css">
   <script defer src="vendor/three.js"></script>
+  <script defer src="js/asset-format.js"></script>
   <script defer src="js/catalog.js"></script>
   <script defer src="js/connections.js"></script>
   <script defer src="js/shared-connections.js"></script>
@@ -19,6 +21,8 @@
   <script defer src="js/defaults.js"></script>
   <script defer src="js/files.js"></script>
   <script defer src="js/equipment-3d.js"></script>
+  <script defer src="js/assets.js"></script>
+  <script defer src="js/asset-library.js"></script>
   <script defer src="js/equipment-thumbnails.js"></script>
   <script defer src="js/equipment-tree.js"></script>
   <script defer src="js/transform-gizmo.js"></script>
@@ -26,12 +30,12 @@
   <script defer src="js/scene.js"></script>
   <script defer src="js/number-scrub.js"></script>
   <script defer src="js/connection-editor.js"></script>
-  <script defer src="js/app.js"></script>
+  <script defer src="js/panel-resize.js"></script>
+  <script defer src="js/startup.js"></script>
 </head>
 <body>
   <header class="topbar">
     <div class="brand"><span class="brand-mark">F</span><div><strong>FEMS <span>by Gics</span></strong><small>FACTORY ENERGY MANAGEMENT</small></div></div>
-    <div class="project-title"><span class="project-dot"></span><span id="project-name">설비 배치도</span><span class="local-tag">LOCAL</span></div>
     <div class="file-actions">
       <button id="new" class="quiet icon-button" title="새 도면" aria-label="새 도면"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8zM14 3v5h5M12 11v6M9 14h6"/></svg></button>
       <button id="open" class="quiet icon-button" title="도면 열기" aria-label="도면 열기"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 10V6a1 1 0 0 1 1-1h5l2 3h8a1 1 0 0 1 1 1v2M3 20l3-9h16l-3 9H3z"/></svg></button>
@@ -41,9 +45,11 @@
     </div>
   </header>
   <main class="workspace">
+    <div class="panel-resizer panel-resizer-left" role="separator" tabindex="0" aria-label="좌측 패널 너비 조절" aria-orientation="vertical" title="드래그하여 너비 조절 · 더블클릭으로 초기화" data-panel="left"></div>
+    <div class="panel-resizer panel-resizer-right" role="separator" tabindex="0" aria-label="우측 패널 너비 조절" aria-orientation="vertical" title="드래그하여 너비 조절 · 더블클릭으로 초기화" data-panel="right"></div>
     <aside class="catalog-panel" aria-label="배치된 설비 계층">
-      <div class="panel-heading"><div><span class="eyebrow">POWER HIERARCHY</span><h1>배치된 설비</h1></div><span id="tree-count" class="count-badge">0</span></div>
-      <label class="search-box"><span aria-hidden="true">⌕</span><input id="equipment-search" type="search" placeholder="이름 또는 코드 검색" aria-label="배치된 설비 검색"><kbd>/</kbd></label>
+      <div class="panel-heading"><h1 class="panel-title">HIERARCHY</h1></div>
+      <label class="search-box"><span aria-hidden="true">⌕</span><input id="equipment-search" type="search" placeholder="이름 또는 코드 검색" aria-label="배치된 설비 검색"><kbd title="검색창으로 이동: / 키">/</kbd></label>
       <div class="tree-scroll"><ul id="equipment-tree" role="tree" aria-label="설비 계층"></ul><p class="tree-empty" hidden>하단 썸네일로 설비를 배치하세요.</p></div>
     </aside>
     <section class="editor" aria-label="설비 배치 작업 공간">
@@ -56,45 +62,85 @@
         <div id="scene" aria-label="3D 설비 배치도"></div>
         <div id="labels" class="labels" aria-hidden="true"></div>
         <button id="gizmo-rotate" class="gizmo-rotate" type="button" aria-label="선택 설비 90° 회전" title="선택 설비를 90° 회전" hidden>↻ 90°</button>
-        <div class="scene-heading"><p>배치 설계 <span>·</span> <span id="site-size">60 × 40 m</span></p></div>
-        <div id="placement" class="placement" hidden><span id="placement-text"></span><button id="cancel-placement">취소 <kbd>Esc</kbd></button></div>
+        <div class="scene-heading"><p>바닥 <span>·</span> <span id="site-size">60 × 40 m</span></p><button id="site-edit" type="button" aria-label="바닥 크기 변경">변경</button></div>
         <div id="empty-state" class="empty-state" hidden><strong>첫 번째 설비를 배치해 보세요</strong><span>하단 썸네일에서 설비를 선택하세요.</span></div>
         <div class="scene-controls"><div><button id="zoom-out" aria-label="축소">−</button><button id="zoom-in" aria-label="확대">+</button></div></div>
         <div id="graphics-error" class="graphics-error" role="alert" hidden></div>
       </div>
       <div id="table-view" class="table-view" hidden><div class="table-heading"><h2>배치된 설비</h2><span>행을 선택하면 속성을 편집할 수 있습니다.</span></div><div class="table-scroll"><table><thead><tr><th>코드</th><th>설비 이름</th><th>종류</th><th>X / Z (m)</th><th>가로 × 세로 × 높이 (m)</th><th>회전</th></tr></thead><tbody id="equipment-table"></tbody></table></div><p id="table-empty" hidden>아직 배치된 설비가 없습니다.</p></div>
-      <section class="equipment-dock" aria-label="설비 라이브러리"><div id="catalog" class="thumbnail-strip" aria-label="배치할 설비"></div></section>
-      <footer class="statusbar"><span><span class="small-dot"></span> <span id="save-status">로컬 작업 공간</span></span><span id="overlap-status"></span><span><strong id="equipment-count">0</strong>개 설비 <i>·</i> 1 m 그리드</span></footer>
+      <section class="equipment-dock" aria-label="설비 라이브러리">
+        <div class="asset-library-bar"><div role="group" aria-label="설비 종류"><button id="catalog-builtin" type="button" aria-pressed="true">기본 설비</button><button id="catalog-custom" type="button" aria-pressed="false">추가 설비</button></div><button id="asset-open" type="button">＋ 에셋 등록</button></div>
+        <div id="catalog" class="thumbnail-strip" aria-label="배치할 설비"></div><p id="asset-library-status" role="status" hidden></p>
+      </section>
+      <footer class="statusbar"><span><span class="small-dot"></span> <span id="save-status">로컬 작업 공간</span></span><span id="overlap-status"></span><span><strong id="equipment-count">0</strong>개 설비 <i>·</i> <span id="grid-size">1 m 그리드</span></span></footer>
     </section>
     <aside class="inspector" aria-labelledby="inspector-title">
-      <div class="panel-heading"><div><span class="eyebrow">PROPERTIES</span><h2 id="inspector-title">설비 속성</h2></div></div>
+      <div class="panel-heading"><h2 id="inspector-title" class="panel-title">PROPERTIES</h2></div>
       <div id="inspector-empty" class="inspector-empty"><span>◇</span><h3>설비를 선택하세요</h3><p>화면이나 좌측 목록에서 선택하면<br>위치와 크기를 편집할 수 있습니다.</p><div class="workflow"><b>01 <span>하단 썸네일에서 설비 선택</span></b><b>02 <span>바닥을 클릭하여 배치</span></b><b>03 <span>좌측 목록에서 계층 연결</span></b></div></div>
-      <section id="connection-properties" hidden aria-label="연결선 속성">
-        <p id="connection-scope" class="live-edit-note"></p>
-        <p id="connection-title" class="description"></p>
-        <label>지름 (m)<input id="connection-diameter" type="number" min="0.02" max="2" step="0.01" value="0.2"></label>
+      <section id="connection-properties" class="property-sections" hidden aria-label="연결선 속성">
+        <div class="property-section"><p id="connection-scope" class="live-edit-note"></p><p id="connection-title" class="description"></p></div>
+        <fieldset><legend>지름 <span>m</span></legend><input id="connection-diameter" aria-label="지름 (m)" type="number" min="0.02" max="2" step="0.01" value="0.2"></fieldset>
         <fieldset><legend>선택 선분 색상</legend><div id="connection-palette" aria-label="선택 선분 색상"></div></fieldset>
-        <p id="connection-selection" class="live-edit-note"></p>
-        <div id="connection-point-fields" class="field-row" hidden><label>X (m)<input id="connection-x" type="number" step="0.01"></label><label>Z (m)<input id="connection-z" type="number" step="0.01"></label></div>
-        <div class="connection-actions"><button id="connection-corner" type="button" aria-pressed="false">코너 추가</button><button id="connection-add" type="button">선분에 포인트 추가</button><button id="connection-delete" type="button">선택 포인트 삭제</button><button id="connection-optimize" type="button">포인트 최적화</button><button id="connection-reset" type="button">최단 경로 복원</button></div>
-        <p id="connection-feedback" class="live-edit-note" role="status"></p>
-        <p id="connection-edit-hint" class="live-edit-note"></p>
-        <p id="connection-error" class="error-message" role="alert"></p>
+        <div class="property-section">
+          <p id="connection-selection" class="live-edit-note"></p>
+          <div id="connection-point-fields" class="field-row" hidden><label>X (m)<input id="connection-x" type="number" step="0.01"></label><label>Z (m)<input id="connection-z" type="number" step="0.01"></label></div>
+          <div class="connection-actions"><button id="connection-corner" type="button" aria-pressed="false">코너 추가</button><button id="connection-add" type="button">선분에 포인트 추가</button><button id="connection-delete" type="button">선택 포인트 삭제</button><button id="connection-optimize" type="button">포인트 최적화</button><button id="connection-reset" type="button">최단 경로 복원</button></div>
+          <p id="connection-feedback" class="live-edit-note" role="status"></p>
+          <p id="connection-edit-hint" class="live-edit-note"></p>
+          <p id="connection-error" class="error-message" role="alert"></p>
+        </div>
       </section>
-      <form id="properties" hidden>
-        <div class="selection-card"><span id="selection-icon"></span><div><strong id="selection-type"></strong><small id="selection-en"></small></div></div>
-        <p id="selection-description" class="description"></p>
-        <fieldset><legend>기본 정보</legend><label>설비 이름<input name="name" maxlength="80" required></label><div class="equipment-code-field"><label for="equipment-code">설비 코드</label><div class="equipment-code-row"><input id="equipment-code" name="code" maxlength="32" readonly><button id="equipment-code-connect" type="button">연결</button></div></div></fieldset>
-        <fieldset><legend>위치 <span>m</span></legend><div class="field-row"><label>X<input name="x" type="number" step="any" min="-100" max="100" required></label><label>Z<input name="z" type="number" step="any" min="-100" max="100" required></label></div><label>회전 <span>°</span><div class="rotation-input"><input name="rotation" type="number" step="any" min="0" max="359.999" required><button id="rotate" type="button" title="90도 회전 (R)">↻ 90°</button></div></label></fieldset>
-        <p id="transform-note" class="live-edit-note">3D·평면도의 X·Z 화살표로 이동<br>↻ 90° 버튼으로 회전 · Esc로 이동 취소</p>
-        <fieldset><legend>설비 크기 <span>m</span></legend><label class="ratio-lock"><input id="lock-ratio" type="checkbox" checked>비율 고정</label><div class="field-row three"><label>가로<input name="width" type="number" step="any" min="0.2" max="30" required></label><label>세로<input name="depth" type="number" step="any" min="0.2" max="30" required></label><label>높이<input name="height" type="number" step="any" min="0.2" max="40" required></label></div></fieldset>
-        <p class="live-edit-note">이름·위치·회전·크기는 즉시 반영됩니다.</p>
-        <p id="property-error" class="error-message" role="alert"></p>
-        <div class="object-actions"><button id="duplicate" type="button">복제</button><button id="delete" type="button" class="danger">삭제</button></div>
-        <p id="dimension-note" class="dimension-note">기본 치수는 배치용 예시입니다.<br>실제 설비 규격에 맞게 변경하세요.</p>
+      <form id="properties" class="property-sections" hidden>
+        <div class="property-section">
+          <div class="selection-card"><span id="selection-icon"></span><div><strong id="selection-type"></strong><small id="selection-en"></small></div></div>
+          <p id="selection-description" class="description"></p>
+        </div>
+        <fieldset><legend>기본 정보</legend><div class="property-section">
+          <label>설비 이름<input name="name" maxlength="80" required title="Enter로 적용 · Esc 또는 다른 곳 클릭으로 취소"></label>
+          <div class="equipment-code-field"><label for="equipment-code">설비 코드</label><div class="equipment-code-row"><input id="equipment-code" name="code" maxlength="32" readonly><button id="equipment-code-connect" type="button">연결</button></div></div>
+        </div></fieldset>
+        <fieldset><legend>위치 <span>m</span></legend><div class="property-section">
+          <div class="field-row"><label>X<input name="x" type="number" step="any" min="-50000" max="50000" required></label><label>Z<input name="z" type="number" step="any" min="-50000" max="50000" required></label></div>
+          <label>회전 <span>°</span><div class="rotation-input"><input name="rotation" type="number" step="any" min="0" max="359.999" required><button id="rotate" type="button" title="90도 회전 (R)">↻ 90°</button></div></label>
+          <p id="transform-note" class="live-edit-note">화살표: 축 이동 · 사각형: X·Z 동시 이동<br>↻ 90°: 회전 · Esc: 이동 취소</p>
+        </div></fieldset>
+        <fieldset><legend>설비 크기 <span>m</span></legend><div class="property-section">
+          <label class="ratio-lock"><input id="lock-ratio" type="checkbox" checked>비율 고정</label>
+          <div class="field-row three"><label>가로<input name="width" type="number" step="any" min="0.2" max="30" required></label><label>세로<input name="depth" type="number" step="any" min="0.2" max="30" required></label><label>높이<input name="height" type="number" step="any" min="0.2" max="40" required></label></div>
+        </div></fieldset>
+        <div class="property-section">
+          <p class="live-edit-note">이름: Enter로 적용 · Esc 또는 다른 곳 클릭으로 취소<br>위치·회전·크기는 즉시 반영됩니다.</p>
+          <p id="property-error" class="error-message" role="alert"></p>
+          <div class="object-actions"><button id="duplicate" type="button">복제</button><button id="delete" type="button" class="danger">삭제</button></div>
+          <p id="dimension-note" class="dimension-note">기본 치수는 배치용 예시입니다.<br>실제 설비 규격에 맞게 변경하세요.</p>
+        </div>
       </form>
     </aside>
   </main>
+  <dialog id="site-dialog" aria-labelledby="site-title" aria-describedby="site-help">
+    <form id="site-form">
+      <h2 id="site-title">바닥 크기 변경</h2>
+      <p id="site-help">바닥 중심과 설비 위치는 유지됩니다.</p>
+      <div class="field-row"><label>가로 (m)<input id="site-width" name="width" type="number" min="0.1" max="100000" step="any" required></label><label>세로 (m)<input id="site-depth" name="depth" type="number" min="0.1" max="100000" step="any" required></label></div>
+      <p id="site-error" class="error-message" role="alert"></p>
+      <div class="dialog-actions"><button id="site-cancel" type="button">취소</button><button type="submit" class="primary">적용</button></div>
+    </form>
+  </dialog>
+  <dialog id="asset-dialog" aria-labelledby="asset-title">
+    <form id="asset-form">
+      <h2 id="asset-title">에셋 등록</h2>
+      <p class="asset-help">텍스처가 포함된 GLB · 최대 25 MB</p>
+      <label>모델 파일<input id="asset-file" type="file" accept=".glb" required></label>
+      <div class="asset-preview"><img id="asset-preview" alt="등록할 설비 미리보기" hidden><span id="asset-preview-note">GLB 파일을 선택하세요.</span></div>
+      <div class="field-row"><label>이름<input id="asset-name" maxlength="60" required></label><label>영문명 (선택)<input id="asset-en" maxlength="80"></label></div>
+      <p class="asset-help">실제 치수 (m) · 피봇은 바닥 중앙에 맞춥니다.</p>
+      <label class="ratio-lock"><input id="asset-lock-ratio" type="checkbox" checked>비율 고정</label>
+      <div class="field-row three"><label>가로<input id="asset-width" name="width" type="number" min="0.2" max="30" step="any" required></label><label>세로<input id="asset-depth" name="depth" type="number" min="0.2" max="30" step="any" required></label><label>높이<input id="asset-height" name="height" type="number" min="0.2" max="40" step="any" required></label></div>
+      <p id="asset-size-error" class="error-message" role="alert"></p>
+      <p id="asset-error" class="error-message" role="alert"></p>
+      <div class="dialog-actions"><button id="asset-cancel" type="button">취소</button><button id="asset-register" class="primary" type="submit" disabled>등록</button></div>
+    </form>
+  </dialog>
   <dialog id="default-dialog" aria-labelledby="default-title" aria-describedby="default-warning">
     <h2 id="default-title">기본 도면을 덮어쓸까요?</h2>
     <p id="default-summary"></p>

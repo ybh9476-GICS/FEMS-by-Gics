@@ -11,3 +11,5 @@
 .file-actions .icon-button,.history-tools .icon-button{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;min-width:36px;padding:8px;flex-shrink:0}
 .icon-button svg{display:block;width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
 .history-tools #fit:after{content:none}
+.history-tools .icon-button{width:32px;height:28px;min-width:32px;padding:6px 8px}
+.history-tools .icon-button svg{width:16px;height:16px}

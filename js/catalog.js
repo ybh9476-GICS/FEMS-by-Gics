@@ -11,7 +11,17 @@
     { type: 'solar', name: '태양광 패널', en: 'Solar panel array', code: 'PV', group: '발전·저장', color: '#387fa9', width: 5, depth: 3, height: 1.8, description: '태양광을 이용해 전력을 생산하는 발전 설비입니다.' },
     { type: 'ess', name: 'ESS', en: 'Energy storage system', code: 'ESS', group: '발전·저장', color: '#39957e', width: 4, depth: 2, height: 2.6, description: '에너지 저장장치로, 전력을 저장하고 필요할 때 공급합니다.' }
   ].map(Object.freeze);
-  const api = Object.freeze({ catalog: Object.freeze(catalog), get: type => catalog.find(item => item.type === type) });
+  const F=typeof module!=='undefined'&&module.exports?require('./asset-format.js'):root.FEMSAssetFormat;
+  const custom=new Map();
+  const api = Object.freeze({
+    builtin:Object.freeze(catalog),
+    get catalog(){return [...catalog,...custom.values()];},
+    register(entries){const valid=entries.map(F.metadata);for(const def of valid)custom.set(def.type,Object.freeze(def));},
+    get:type=>catalog.find(item=>item.type===type)||custom.get(type)||(F.isId(type)?{
+      type,custom:true,missing:true,name:'에셋 없음',en:'Missing asset',code:'',color:'#b46d57',width:1,depth:1,height:1,
+      description:'이 에셋의 등록 정보가 없습니다. 원래 assets/equipment 폴더를 복원하세요. 배치 정보는 유지됩니다.'
+    }:undefined)
+  });
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.FEMSCatalog = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -20,7 +20,7 @@
       return {ids:additive?(current.includes(id)?current.filter(key=>key!==id):[...current,id]):[id],anchor:id};
     }
     choose(id,event){
-      const visible=[...this.host.querySelectorAll('[role=treeitem]')].map(row=>row.dataset.id);
+      const visible=[...this.host.querySelectorAll('[role=treeitem]')].map(row=>row.dataset.id).filter(Boolean);
       const next=EquipmentTree.nextSelection(this.selectedIds,this.anchor,visible,id,event);this.anchor=next.anchor;
       this.selecting=true;try{this.handlers.select(id,next.ids);}finally{this.selecting=false;}
       this.focus(id);
@@ -39,6 +39,7 @@
     dropTarget(event){
       const scroll=this.host.parentElement,bounds=scroll.getBoundingClientRect();
       if(event.clientX<bounds.left||event.clientX>bounds.right||event.clientY<bounds.top||event.clientY>bounds.bottom)return null;
+      if(this.documentRow){const rect=this.documentRow.getBoundingClientRect();if(event.clientY>=rect.top&&event.clientY<=rect.bottom)return {element:this.documentRow,parentId:null,position:'inside'};}
       const rows=[...this.host.querySelectorAll('.tree-row')];if(!rows.length)return null;
       const last=rows.at(-1).getBoundingClientRect();
       if(event.clientY>last.bottom+3)return {element:this.host,parentId:null,position:'inside',line:{left:this.host.getBoundingClientRect().left,right:bounds.right-10,y:last.bottom+3}};
@@ -77,7 +78,7 @@
         const dragged=this.dragged,ids=this.draggedIds,target=this.dropTarget(event),valid=target&&this.allowed(target.parentId,target.referenceId);
         this.skipClick=!!dragged;this.clearDrag();
         if(!dragged||!target)return;
-        if(valid){if(target.parentId)this.collapsed.delete(target.parentId);this.handlers.reparent(ids.length>1?ids:dragged,target.parentId,target.referenceId,target.position);}
+        if(valid){if(target.parentId)(this.searchQuery?this.searchCollapsed:this.collapsed).delete(target.parentId);this.handlers.reparent(ids.length>1?ids:dragged,target.parentId,target.referenceId,target.position);}
         else this.handlers.error('자기 자신이나 하위 설비 안으로 이동할 수 없습니다.');
       });
       row.addEventListener('pointercancel',()=>this.clearDrag());
@@ -86,40 +87,47 @@
     render(state,selected,force=false,selectedIds=selected?[selected]:[]){
       if(!state)return;
       const query=this.search.value.trim().toLowerCase();
-      const key=JSON.stringify([state.equipment.map(e=>[e.id,e.parentId,e.name,e.code,e.type]),selected,selectedIds,query]);
+      if(query!==this.searchQuery){this.searchCollapsed=new Set();this.searchDocumentCollapsed=false;this.searchQuery=query;}
+      const collapsed=query?this.searchCollapsed:this.collapsed;
+      const key=JSON.stringify([state.name,state.equipment.map(e=>[e.id,e.parentId,e.name,e.code,e.type]),selected,selectedIds,query]);
       if(!force&&key===this.key)return;
       const selectionChanged=selected!==this.selected||JSON.stringify(selectedIds)!==JSON.stringify(this.selectedIds);
       this.state=state;this.selected=selected;this.selectedIds=[...selectedIds];this.key=key;
       if(!this.selecting&&selectionChanged)this.anchor=selected;
       const byId=new Map(state.equipment.map(e=>[e.id,e])),children=new Map();
       for(const item of state.equipment){const parent=item.parentId||null;if(!children.has(parent))children.set(parent,[]);children.get(parent).push(item);}
-      if(selectionChanged){let parent=byId.get(selected)?.parentId;while(parent){this.collapsed.delete(parent);parent=byId.get(parent)?.parentId;}}
+      if(selectionChanged){if(selectedIds.length){if(query)this.searchDocumentCollapsed=false;else this.documentCollapsed=false;}let parent=byId.get(selected)?.parentId;while(parent){collapsed.delete(parent);parent=byId.get(parent)?.parentId;}}
       const shown=new Set();
       for(const item of state.equipment){
         const def=root.FEMSCatalog.get(item.type);
         if(!query||`${item.name} ${item.code} ${def.name} ${def.en}`.toLowerCase().includes(query)){
-          let current=item;while(current){shown.add(current.id);current=byId.get(current.parentId);}
+          shown.add(item.id);
+          if(query){let parent=item.parentId;while(parent&&!shown.has(parent)){shown.add(parent);parent=byId.get(parent)?.parentId;}}
         }
+      }
+      if(query){
+        // Keep each matching item's ancestry; omit unrelated branches without changing the document.
+        for(const [parent,items] of children){const visible=items.filter(item=>shown.has(item.id));if(visible.length)children.set(parent,visible);else children.delete(parent);}
       }
       const focusId=this.host.ownerDocument.activeElement?.closest('[role=treeitem]')?.dataset.id;
       this.host.replaceChildren();
+      this.documentRow=null;this.documentNode=null;
       const build=(parent,container,depth)=>{
         for(const item of children.get(parent)||[]){
           if(!shown.has(item.id))continue;
           const li=document.createElement('li');li.setAttribute('role','treeitem');li.dataset.id=item.id;
           li.setAttribute('aria-label',[item.code,item.name].filter(Boolean).join(' '));li.setAttribute('aria-selected',String(selectedIds.includes(item.id)));
           li.setAttribute('aria-level',String(depth));li.tabIndex=item.id===selected||(!selected&&this.host.childElementCount===0)?0:-1;
-          const hasChildren=children.has(item.id),expanded=!!query||!this.collapsed.has(item.id);
+          const hasChildren=children.has(item.id),expanded=!collapsed.has(item.id);
           if(hasChildren)li.setAttribute('aria-expanded',String(expanded));
           const row=document.createElement('div');row.className='tree-row';row.dataset.id=item.id;
           const toggle=document.createElement('button');toggle.type='button';toggle.className='tree-toggle';toggle.tabIndex=-1;
           toggle.textContent=hasChildren?(expanded?'▾':'▸'):'·';toggle.disabled=!hasChildren;
           toggle.setAttribute('aria-label',`${item.code||item.name} ${expanded?'접기':'펼치기'}`);
-          toggle.addEventListener('click',event=>{event.stopPropagation();if(this.collapsed.has(item.id))this.collapsed.delete(item.id);else this.collapsed.add(item.id);this.render(state,this.selected,true,this.selectedIds);});
-          const marker=document.createElement('span');marker.className='tree-marker';marker.style.background=root.FEMSCatalog.get(item.type).color;
+          toggle.addEventListener('click',event=>{event.stopPropagation();if(collapsed.has(item.id))collapsed.delete(item.id);else collapsed.add(item.id);this.render(state,this.selected,true,this.selectedIds);});
           const label=document.createElement('span');label.className='tree-name';
           const name=document.createElement('strong');name.textContent=item.name;label.append(name);
-          row.append(toggle,marker,label);row.title=item.name;
+          row.append(toggle,label);row.title=item.name;
           if(hasChildren){const count=document.createElement('span');count.className='tree-count';count.textContent=children.get(item.id).length;row.append(count);}
           row.addEventListener('click',event=>{if(this.skipClick){this.skipClick=false;return;}this.choose(item.id,event);});
           this.bindDrag(row,item.id);li.append(row);container.append(li);
@@ -131,15 +139,36 @@
             if(event.key==='ArrowDown')target=list[Math.min(index+1,list.length-1)];
             else if(event.key==='ArrowUp')target=list[Math.max(0,index-1)];
             else if(event.key==='Home')target=list[0];else if(event.key==='End')target=list.at(-1);
-            else if(event.key==='ArrowRight'&&hasChildren){this.collapsed.delete(item.id);this.render(state,this.selected,true,this.selectedIds);this.focus(item.id);}
-            else if(event.key==='ArrowLeft'){if(hasChildren&&expanded){this.collapsed.add(item.id);this.render(state,this.selected,true,this.selectedIds);this.focus(item.id);}else if(item.parentId)this.focus(item.parentId);}
+            else if(event.key==='ArrowRight'&&hasChildren){collapsed.delete(item.id);this.render(state,this.selected,true,this.selectedIds);this.focus(item.id);}
+            else if(event.key==='ArrowLeft'){if(hasChildren&&expanded){collapsed.add(item.id);this.render(state,this.selected,true,this.selectedIds);this.focus(item.id);}else if(item.parentId)this.focus(item.parentId);else this.documentNode?.focus();}
             else if(event.key==='Enter'||event.key===' '){this.choose(item.id,event);}
             else return;
-            event.preventDefault();event.stopPropagation();if(target&&event.shiftKey)this.choose(target.dataset.id,event);else target?.focus();
+            event.preventDefault();event.stopPropagation();if(target?.dataset.id&&event.shiftKey)this.choose(target.dataset.id,event);else target?.focus();
           });
         }
       };
-      build(null,this.host,1);
+      if(!query||shown.size){
+        const documentCollapsed=query?this.searchDocumentCollapsed:this.documentCollapsed;
+        const node=document.createElement('li');node.className='tree-document';node.setAttribute('role','treeitem');node.setAttribute('aria-label',state.name);node.setAttribute('aria-level','1');node.setAttribute('aria-expanded',String(!documentCollapsed));node.tabIndex=selectedIds.length?-1:0;
+        const row=document.createElement('div');row.className='tree-document-row';row.title=state.name+' · 드래그하여 최상위로 이동';
+        const toggle=document.createElement('button');toggle.type='button';toggle.className='tree-toggle';toggle.tabIndex=-1;toggle.textContent=documentCollapsed?'▸':'▾';toggle.setAttribute('aria-label','도면 '+(documentCollapsed?'펼치기':'접기'));
+        const name=document.createElement('strong');name.id='project-name';name.textContent=state.name;
+        row.append(toggle,name);node.append(row);this.host.append(node);this.documentNode=node;this.documentRow=row;
+        const expand=value=>{if(query)this.searchDocumentCollapsed=!value;else this.documentCollapsed=!value;this.render(this.state,this.selected,true,this.selectedIds);this.documentNode.focus();};
+        toggle.addEventListener('click',event=>{event.stopPropagation();expand(documentCollapsed);});
+        row.addEventListener('click',()=>{this.handlers.select(null,[]);this.documentNode?.focus();});
+        node.addEventListener('keydown',event=>{
+          if(event.target!==node)return;
+          if(event.key==='ArrowRight'){if(documentCollapsed)expand(true);else this.host.querySelector('[role=treeitem][data-id]')?.focus();}
+          else if(event.key==='ArrowLeft')expand(false);
+          else if(event.key==='ArrowDown')this.host.querySelector('[role=treeitem][data-id]')?.focus();
+          else if(event.key==='End'){const items=this.host.querySelectorAll('[role=treeitem][data-id]');items[items.length-1]?.focus();}
+          else if(event.key==='Enter'||event.key===' ')expand(documentCollapsed);
+          else return;
+          event.preventDefault();event.stopPropagation();
+        });
+        if(!documentCollapsed){const group=document.createElement('ul');group.setAttribute('role','group');node.append(group);build(null,group,2);}
+      }
       if(!this.host.querySelector('[tabindex="0"]')){const first=this.host.querySelector('[role=treeitem]');if(first)first.tabIndex=0;}
       if(focusId)this.focus(focusId);
       const selectedNode=[...this.host.querySelectorAll('[role=treeitem]')].find(e=>e.dataset.id===selected);
