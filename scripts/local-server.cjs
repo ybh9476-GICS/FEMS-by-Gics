@@ -64,7 +64,7 @@ function createServer(root = projectRoot) {
             chunks.push(chunk);
           }
           let contents;
-          try { contents = defaults.serialize(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
+          try { const state=require('../js/model.js').validate(JSON.parse(Buffer.concat(chunks).toString('utf8')));await assetStore.verifyProject(await readyRoot,state);contents = defaults.serialize(state); }
           catch { return reply(400, 'Invalid FEMS drawing.'); }
           const base = await readyRoot;
           const directory = path.join(base, 'js');

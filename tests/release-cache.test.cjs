@@ -11,10 +11,10 @@ test('배포 HTML의 모든 스타일·스크립트 주소는 현재 코드의 �
 test('비동기 에셋 초기화 후에도 app.js는 시작 스크립트와 같은 버전으로 요청한다',async()=>{
   for(const base of ['https://example.github.io/FEMS-by-Gics/','http://127.0.0.1:4175/']){
     let resolve;const appended=[];
-    const context={URL,window:{FEMSAssets:{initialize:()=>new Promise(done=>{resolve=done;})}},document:{currentScript:{src:base+'js/startup.js?v=abc123'},createElement:()=>({}),head:{append:script=>appended.push(script)}}};
+    const context={URL,window:{FEMSCatalog:{catalog:[]},FEMSProjectFile:{revision:async()=> 'a'.repeat(64)},FEMSAssets:{initialize:()=>new Promise(done=>{resolve=done;})}},document:{currentScript:{src:base+'js/startup.js?v=abc123'},createElement:()=>({}),head:{append:script=>appended.push(script)}}};
     vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../js/startup.js'),'utf8'),context);
     assert.equal(appended.length,0);
-    context.document.currentScript=null;resolve('');await Promise.resolve();
+    context.document.currentScript=null;resolve('');await new Promise(done=>setImmediate(done));
     assert.equal(appended.length,1);assert.equal(String(appended[0].src),base+'js/app.js?v=abc123');
   }
 });

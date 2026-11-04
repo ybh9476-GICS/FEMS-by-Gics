@@ -75,6 +75,11 @@
       }
     }
     if(raw.version===2)result.networks=L.validateNetworks(raw,result);
+    if(raw.project!=null){
+      const p=raw.project,F=typeof module!=='undefined'&&module.exports?require('./asset-format.js'):root.FEMSAssetFormat;
+      if(!['new','file'].includes(p.kind)||typeof p.baseRevision!=='string'||(p.baseRevision!==''&&!/^[a-f0-9]{64}$/.test(p.baseRevision)))throw new Error('프로젝트 정보가 올바르지 않습니다.');
+      result.project={id:text(p.id,'프로젝트 ID'),kind:p.kind,baseRevision:p.baseRevision,assets:F.manifest({version:1,assets:p.assets})};
+    }
     return result;
   }
   function reparent(state, id, parentId = null) {

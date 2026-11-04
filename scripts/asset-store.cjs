@@ -28,4 +28,15 @@ async function store(root,raw){
   }
   return entry;
 }
-module.exports={store};
+async function verifyProject(root,state){
+  if(!state.project)return;
+  if(state.project.kind!=='new')throw new Error('새 도면만 기본 도면으로 교체할 수 있습니다.');
+  const base=await fs.realpath(root);
+  for(const entry of state.project.assets){
+    const target=path.join(base,entry.model);if(await fs.realpath(target)!==target)throw new Error('연결된 에셋 경로는 지원하지 않습니다.');
+    const bytes=await fs.readFile(target);F.inspect(bytes);
+    if(entry.sha256&&require('node:crypto').createHash('sha256').update(bytes).digest('hex')!==entry.sha256)throw new Error('에셋 원본이 다릅니다.');
+  }
+  for(const item of state.equipment)if(F.isId(item.type)&&!state.project.assets.some(a=>a.type===item.type))throw new Error('배치된 설비의 에셋 원본이 없습니다.');
+}
+module.exports={store,verifyProject};

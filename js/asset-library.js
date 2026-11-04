@@ -1,6 +1,7 @@
 (function(root){
   'use strict';
   const $=id=>document.getElementById(id),C=root.FEMSCatalog,A=root.FEMSAssets,F=root.FEMSAssetFormat;
+  const imageKey=def=>def.custom?[def.type,def.sha256||'',def.width,def.depth,def.height].join(':'):def.type;
   class Library{
     constructor(handlers){
       this.handlers=handlers;this.filter='builtin';this.signature='';this.images={};this.imageJobs=new Set();this.queue=Promise.resolve();this.token=0;
@@ -30,7 +31,7 @@
     render(armed){
       for(const kind of ['builtin','custom'])$('catalog-'+kind).setAttribute('aria-pressed',String(this.filter===kind));
       const entries=C.catalog.filter(def=>!!def.custom===(this.filter==='custom'));
-      const signature=this.filter+entries.map(def=>def.type).join('|');
+      const signature=this.filter+entries.map(def=>imageKey(def)+':'+def.name+':'+def.en).join('|');
       if(signature!==this.signature){
         this.signature=signature;this.hideTip();$('catalog').replaceChildren();
         for(const def of entries){
@@ -47,10 +48,11 @@
           const show=()=>{const tip=$('catalog-tooltip'),rect=button.getBoundingClientRect();tip.querySelector('strong').textContent=def.name;tip.querySelector('span').textContent=def.en;tip.hidden=false;const width=tip.getBoundingClientRect().width;tip.style.left=Math.max(width/2+10,Math.min(innerWidth-width/2-10,rect.left+rect.width/2))+'px';tip.style.top=rect.top-10+'px';};
           button.addEventListener('pointerenter',show);button.addEventListener('focus',show);button.addEventListener('pointerleave',()=>this.hideTip());button.addEventListener('blur',()=>this.hideTip());
           button.addEventListener('click',()=>{this.hideTip();this.handlers.arm(this.armed===def.type?null:def.type);});$('catalog').append(button);
-          if(def.custom&&!this.imageJobs.has(def.type)){
-            this.imageJobs.add(def.type);
-            this.queue=this.queue.then(async()=>{try{const {object}=await A.load(def.type);this.images[def.type]=A.picture(object,def);}
-              catch(error){this.images[def.type]=null;this.showStatus(def.name+': '+error.message);}
+          const key=imageKey(def);
+          if(def.custom&&!this.imageJobs.has(key)){
+            this.imageJobs.add(key);
+            this.queue=this.queue.then(async()=>{try{if(C.get(def.type)?.sha256!==def.sha256||C.get(def.type)?.missing){this.imageJobs.delete(key);return;}const {object}=await A.load(def.type);this.images[key]=A.picture(object,def);}
+              catch(error){this.images[key]=null;if(C.get(def.type)?.sha256===def.sha256&&!C.get(def.type)?.missing)this.showStatus(def.name+': '+error.message);}
               this.paint(def.type);
             });
           }
@@ -64,8 +66,9 @@
     showStatus(message){$('asset-library-status').hidden=false;$('asset-library-status').textContent=message;}
     paint(type){
       const button=[...$('catalog').children].find(b=>b.dataset.type===type);if(!button)return;
-      if(this.images[type]){const image=document.createElement('img');image.src=this.images[type];image.alt='';image.draggable=false;button.replaceChildren(image);}
-      else if(this.images[type]===null){button.disabled=true;button.title='에셋 파일을 확인하세요: '+C.get(type).model;}
+      const key=imageKey(C.get(type));
+      if(this.images[key]){const image=document.createElement('img');image.src=this.images[key];image.alt='';image.draggable=false;button.replaceChildren(image);}
+      else if(this.images[key]===null){button.disabled=true;button.title='에셋 파일을 확인하세요: '+C.get(type).model;}
     }
     clearPreview(){clearTimeout(this.pictureTimer);this.finishResize(false);this.dimensions=null;if(this.preview)A.release(this.preview.object);this.preview=null;this.file=null;$('asset-preview').hidden=true;$('asset-preview').removeAttribute('src');$('asset-preview-note').hidden=false;$('asset-register').disabled=true;}
     async open(){
@@ -132,8 +135,9 @@
         const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(new Error('파일을 읽지 못했습니다.'));reader.onload=()=>resolve(reader.result.split(',')[1]);reader.readAsDataURL(this.file);});
         const response=await fetch('api/assets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...values,glb:data})});
         if(!response.ok)throw new Error(await response.text());
-        const def=F.metadata(await response.json());C.register([def]);
-        try{this.images[def.type]=A.picture(this.preview.object,def);this.imageJobs.add(def.type);}catch{}
+        const def=F.metadata(await response.json());
+        if(!this.handlers.register(def))throw new Error('현재 도면에 에셋을 추가하지 못했습니다.');
+        try{const key=imageKey(def);this.images[key]=A.picture(this.preview.object,def);this.imageJobs.add(key);}catch{}
         this.filter='custom';this.handlers.arm(null);this.render(null);$('asset-dialog').close();this.handlers.toast(def.name+' 에셋을 등록했습니다.');
       }catch(error){$('asset-error').textContent='등록하지 못했습니다. '+error.message;}
       finally{this.saving=false;for(const control of $('asset-form').elements)control.disabled=false;$('asset-register').textContent='등록';$('asset-register').disabled=!this.preview||!this.canRegister;}

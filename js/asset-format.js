@@ -8,6 +8,7 @@
     const en=typeof raw.en==='string'?raw.en.trim():'';
     if(!name||name.length>60||en.length>80)throw new Error('이름은 1~60자, 영문명은 80자 이하로 입력하세요.');
     const result={type:raw.type,name,en,custom:true,code:'',group:'추가 에셋',color:'#71869a',description:'프로젝트에 등록된 GLB 설비입니다.',model:`assets/equipment/${raw.type}/model.glb`};
+    if(raw.sha256!=null){if(typeof raw.sha256!=='string'||!/^[a-f0-9]{64}$/.test(raw.sha256))throw new Error('에셋 파일 식별값이 올바르지 않습니다.');result.sha256=raw.sha256;}
     for(const key of ['width','depth','height']){
       const max=key==='height'?40:30,value=raw[key];
       if(typeof value!=='number'||!Number.isFinite(value)||value<.2||value>max)throw new Error(`설비 ${key==='width'?'가로':key==='depth'?'세로':'높이'}는 0.2~${max} m로 입력하세요.`);

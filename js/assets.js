@@ -2,6 +2,28 @@
   'use strict';
   const T=root.THREE,C=root.FEMSCatalog,F=root.FEMSAssetFormat,templates=new Map();
   let loaderPromise,cloneModel;
+  let database;
+  function db(){return database??=new Promise((resolve,reject)=>{
+    const request=indexedDB.open('gics-fems-models',1);
+    request.onupgradeneeded=()=>request.result.createObjectStore('models');
+    request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(new Error('에셋 보관함을 열지 못했습니다.'));
+  });}
+  async function stored(key){const database=await db();return new Promise((resolve,reject)=>{const request=database.transaction('models').objectStore('models').get(key);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
+  async function importBlobs(blobs){
+    if(!blobs.size)return;
+    const database=await db();await new Promise((resolve,reject)=>{
+      const tx=database.transaction('models','readwrite');tx.oncomplete=resolve;tx.onerror=()=>reject(new Error('에셋을 저장하지 못했습니다. 브라우저 저장 공간을 확인하세요.'));tx.onabort=()=>reject(new Error('에셋 저장이 취소되었습니다.'));
+      for(const [key,bytes] of blobs)tx.objectStore('models').put(bytes,key);
+    });
+  }
+  async function readBytes(def){
+    if(def.sha256){const saved=await stored(def.sha256);if(saved)return saved;}
+    const response=await fetch(def.model);if(!response.ok)throw new Error(def.name+': 에셋 파일을 찾을 수 없습니다.');
+    const length=Number(response.headers.get('content-length'));if(length>F.MAX_BYTES)throw new Error('에셋 파일이 25 MB를 초과합니다.');
+    const bytes=await response.arrayBuffer();F.inspect(bytes);
+    if(def.sha256&&await root.FEMSProjectFile.hash(bytes)!==def.sha256)throw new Error(def.name+': 에셋 원본이 다릅니다. 프로젝트 파일을 다시 열어주세요.');
+    return bytes;
+  }
   const loader=()=>loaderPromise??=Promise.all([import('../vendor/gltf/loaders/GLTFLoader.js'),import('../vendor/gltf/utils/SkeletonUtils.js')]).then(([{GLTFLoader},{clone}])=>{cloneModel=clone;return GLTFLoader;});
   function release(object){
     const geometries=new Set(),materials=new Set(),textures=new Set();
@@ -9,6 +31,7 @@
     geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());textures.forEach(t=>{t.dispose();t.source?.data?.close?.();});
   }
   async function parse(buffer){
+    if(ArrayBuffer.isView(buffer))buffer=buffer.buffer.slice(buffer.byteOffset,buffer.byteOffset+buffer.byteLength);
     F.inspect(buffer);
     const Loader=await loader(),manager=new T.LoadingManager();let textureFailed=false;
     manager.onError=()=>{textureFailed=true;};
@@ -25,13 +48,12 @@
     return {object:normalized,size:{width:size.x,depth:size.z,height:size.y}};
   }
   async function load(type){
-    if(!templates.has(type))templates.set(type,(async()=>{
-      const def=C.get(type);if(!def||def.missing)throw new Error('에셋 등록 정보가 없습니다.');
-      const response=await fetch(def.model);if(!response.ok)throw new Error('에셋 파일을 찾을 수 없습니다.');
-      const length=Number(response.headers.get('content-length'));if(length>F.MAX_BYTES)throw new Error('에셋 파일이 25 MB를 초과합니다.');
-      return parse(await response.arrayBuffer());
+    const def=C.get(type),key=type+':'+(def?.sha256||def?.model);
+    if(!templates.has(key))templates.set(key,(async()=>{
+      if(!def||def.missing)throw new Error('에셋 등록 정보가 없습니다.');
+      return parse(await readBytes(def));
     })());
-    return templates.get(type);
+    return templates.get(key);
   }
   function make(type,onReady){
     const group=new T.Group(),placeholder=new T.Mesh(new T.BoxGeometry(1,1,1),new T.MeshBasicMaterial({color:'#9eaca8',wireframe:true}));
@@ -62,5 +84,5 @@
     try{const response=await fetch('assets/equipment/index.json');if(!response.ok)throw new Error('에셋 목록을 불러오지 못했습니다.');C.register(F.manifest(await response.json()));return '';}
     catch(error){return error.message+' 기본 설비는 사용할 수 있습니다.';}
   }
-  root.FEMSAssets={initialize,parse,load,make,disposeInstance,picture,release};
+  root.FEMSAssets={initialize,parse,load,make,disposeInstance,picture,release,readBytes,importBlobs};
 })(window);

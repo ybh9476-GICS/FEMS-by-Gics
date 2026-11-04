@@ -6,32 +6,33 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="theme-color" content="#183b38">
   <title>FEMS by Gics</title>
-  <link rel="stylesheet" href="css/app.css?v=cd7228380709faf9">
-  <link rel="stylesheet" href="css/number-scrub.css?v=cd7228380709faf9">
-  <link rel="stylesheet" href="css/equipment-layout.css?v=cd7228380709faf9">
-  <link rel="stylesheet" href="css/connections.css?v=cd7228380709faf9">
-  <link rel="stylesheet" href="css/panel-resize.css?v=cd7228380709faf9">
-  <script defer src="vendor/three.js?v=cd7228380709faf9"></script>
-  <script defer src="js/asset-format.js?v=cd7228380709faf9"></script>
-  <script defer src="js/catalog.js?v=cd7228380709faf9"></script>
-  <script defer src="js/connections.js?v=cd7228380709faf9"></script>
-  <script defer src="js/shared-connections.js?v=cd7228380709faf9"></script>
-  <script defer src="js/model.js?v=cd7228380709faf9"></script>
-  <script defer src="js/default-layout.js?v=cd7228380709faf9"></script>
-  <script defer src="js/defaults.js?v=cd7228380709faf9"></script>
-  <script defer src="js/files.js?v=cd7228380709faf9"></script>
-  <script defer src="js/equipment-3d.js?v=cd7228380709faf9"></script>
-  <script defer src="js/assets.js?v=cd7228380709faf9"></script>
-  <script defer src="js/asset-library.js?v=cd7228380709faf9"></script>
-  <script defer src="js/equipment-thumbnails.js?v=cd7228380709faf9"></script>
-  <script defer src="js/equipment-tree.js?v=cd7228380709faf9"></script>
-  <script defer src="js/transform-gizmo.js?v=cd7228380709faf9"></script>
-  <script defer src="js/connection-view.js?v=cd7228380709faf9"></script>
-  <script defer src="js/scene.js?v=cd7228380709faf9"></script>
-  <script defer src="js/number-scrub.js?v=cd7228380709faf9"></script>
-  <script defer src="js/connection-editor.js?v=cd7228380709faf9"></script>
-  <script defer src="js/panel-resize.js?v=cd7228380709faf9"></script>
-  <script defer src="js/startup.js?v=cd7228380709faf9"></script>
+  <link rel="stylesheet" href="css/app.css?v=e0ac938c28849aac">
+  <link rel="stylesheet" href="css/number-scrub.css?v=e0ac938c28849aac">
+  <link rel="stylesheet" href="css/equipment-layout.css?v=e0ac938c28849aac">
+  <link rel="stylesheet" href="css/connections.css?v=e0ac938c28849aac">
+  <link rel="stylesheet" href="css/panel-resize.css?v=e0ac938c28849aac">
+  <script defer src="vendor/three.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/asset-format.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/catalog.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/connections.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/shared-connections.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/model.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/default-layout.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/defaults.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/project-file.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/files.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/equipment-3d.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/assets.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/asset-library.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/equipment-thumbnails.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/equipment-tree.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/transform-gizmo.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/connection-view.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/scene.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/number-scrub.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/connection-editor.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/panel-resize.js?v=e0ac938c28849aac"></script>
+  <script defer src="js/startup.js?v=e0ac938c28849aac"></script>
 </head>
 <body>
   <header class="topbar">
@@ -41,7 +42,7 @@
       <button id="open" class="quiet icon-button" title="도면 열기" aria-label="도면 열기"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 10V6a1 1 0 0 1 1-1h5l2 3h8a1 1 0 0 1 1 1v2M3 20l3-9h16l-3 9H3z"/></svg></button>
       <button id="save" class="quiet icon-button" title="도면 저장 (Ctrl+S)" aria-label="도면 저장"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 3h13l4 4v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM7 3v6h9V3M7 21v-8h10v8"/></svg></button>
       <button id="export-default" class="quiet icon-button" title="기본 도면 교체" aria-label="기본 도면 교체"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 8h16M16 4l4 4-4 4M20 16H4M8 12l-4 4 4 4"/></svg></button>
-      <input id="file" type="file" accept=".fems,application/json" hidden>
+      <input id="file" type="file" accept=".fems,application/json,application/octet-stream" hidden>
     </div>
   </header>
   <main class="workspace">
@@ -145,15 +146,22 @@
     <h2 id="default-title">기본 도면을 덮어쓸까요?</h2>
     <p id="default-summary"></p>
     <ul id="default-warning" class="dialog-message">
-      <li>현재 도면으로 기본 도면을 교체합니다.</li>
+      <li>현재 도면과 추가 에셋 목록을 기본 구성으로 저장합니다.</li>
       <li><strong>실행 취소로 되돌릴 수 없습니다.</strong></li>
       <li>현재 작업과 자동 저장은 유지됩니다.</li>
       <li>GitHub 반영은 별도 푸시가 필요합니다.</li>
     </ul>
     <details><summary>내보낼 데이터 보기</summary><p><code>js/default-layout.js</code></p><textarea id="default-source" readonly aria-label="기본 도면 파일 내용" spellcheck="false"></textarea></details>
     <p id="default-error" class="error-message" role="alert"></p>
+    <button id="default-backup-save" type="button" hidden>기본값 갱신 전 작업 백업 저장</button>
     <p><a id="branch-backup" download="공유분기-변환전-백업.fems" hidden>공유 분기점 변환 전 도면 백업 내려받기</a></p>
     <div class="dialog-actions"><button id="default-close" type="button" autofocus>취소</button><button id="default-overwrite" class="primary" type="button">덮어쓰기</button></div>
+  </dialog>
+  <dialog id="default-update-dialog" aria-labelledby="default-update-title">
+    <h2 id="default-update-title">새 기본 도면이 있습니다</h2>
+    <p>현재 작업을 유지하거나 새 기본 도면을 불러오세요.<br>불러오기 전에 현재 작업을 백업합니다.</p>
+    <p id="default-update-error" class="error-message" role="alert"></p>
+    <div class="dialog-actions"><button id="default-update-keep" type="button" autofocus>기존 작업 유지</button><button id="default-update-load" type="button" class="primary">새 기본 도면 불러오기</button></div>
   </dialog>
   <dialog id="connection-reset-dialog" aria-labelledby="connection-reset-title" aria-describedby="connection-reset-description">
     <form method="dialog">

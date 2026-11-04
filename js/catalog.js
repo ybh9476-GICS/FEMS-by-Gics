@@ -17,6 +17,7 @@
     builtin:Object.freeze(catalog),
     get catalog(){return [...catalog,...custom.values()];},
     register(entries){const valid=entries.map(F.metadata);for(const def of valid)custom.set(def.type,Object.freeze(def));},
+    replace(entries){const valid=entries.map(F.metadata);custom.clear();for(const def of valid)custom.set(def.type,Object.freeze(def));},
     get:type=>catalog.find(item=>item.type===type)||custom.get(type)||(F.isId(type)?{
       type,custom:true,missing:true,name:'에셋 없음',en:'Missing asset',code:'',color:'#b46d57',width:1,depth:1,height:1,
       description:'이 에셋의 등록 정보가 없습니다. 원래 assets/equipment 폴더를 복원하세요. 배치 정보는 유지됩니다.'

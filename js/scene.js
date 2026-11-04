@@ -34,10 +34,11 @@
         const edge=new T.LineSegments(new T.EdgesGeometry(floor.geometry),new T.LineBasicMaterial({color:'#aec4bc'}));edge.position.copy(floor.position);this.ground.add(edge);this.scene.add(this.ground);
       }
       const active=new Set(state.equipment.map(e=>e.id));
-      for(const [id,model] of this.models)if(!active.has(id)||state.equipment.find(item=>item.id===id)?.type!==model.userData.equipmentType) {this.scene.remove(model);root.FEMSEquipment.dispose(model);this.models.delete(id);this.labels.get(id).remove();this.labels.delete(id);const footprint=this.footprints.get(id);this.scene.remove(footprint);root.FEMSEquipment.dispose(footprint);this.footprints.delete(id);}
+      const assetKey=type=>type+':'+(root.FEMSCatalog.get(type)?.sha256||'');
+      for(const [id,model] of this.models)if(!active.has(id)||assetKey(state.equipment.find(item=>item.id===id)?.type)!==model.userData.assetKey) {this.scene.remove(model);root.FEMSEquipment.dispose(model);this.models.delete(id);this.labels.get(id).remove();this.labels.delete(id);const footprint=this.footprints.get(id);this.scene.remove(footprint);root.FEMSEquipment.dispose(footprint);this.footprints.delete(id);}
       for(const item of state.equipment){
         let model=this.models.get(item.id);
-        if(!model){model=root.FEMSEquipment.make(item.type,loaded=>{if(this.models.get(item.id)!==loaded)return;loaded.traverse(part=>part.userData.equipmentId=item.id);this.labels.get(item.id).title=loaded.userData.assetError||'';this.updateSelection();this.invalidate();});model.userData.equipmentType=item.type;model.traverse(part=>part.userData.equipmentId=item.id);this.models.set(item.id,model);this.scene.add(model);
+        if(!model){model=root.FEMSEquipment.make(item.type,loaded=>{if(this.models.get(item.id)!==loaded)return;loaded.traverse(part=>part.userData.equipmentId=item.id);this.labels.get(item.id).title=loaded.userData.assetError||'';this.updateSelection();this.invalidate();});model.userData.equipmentType=item.type;model.userData.assetKey=assetKey(item.type);model.traverse(part=>part.userData.equipmentId=item.id);this.models.set(item.id,model);this.scene.add(model);
           const label=document.createElement('span');label.className='object-label';this.labelHost.appendChild(label);this.labels.set(item.id,label);
           const footprint=new T.Mesh(new T.BoxGeometry(1,.025,1),new T.MeshBasicMaterial({color:root.FEMSCatalog.get(item.type).color}));footprint.userData.equipmentId=item.id;this.footprints.set(item.id,footprint);this.scene.add(footprint);}
         model.scale.set(item.width,item.height,item.depth);model.position.set(item.x,0,item.z);model.rotation.y=item.rotation*Math.PI/180;model.visible=this.mode==='3d';
