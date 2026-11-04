@@ -349,7 +349,7 @@
   window.FEMSNumberScrub.install($('properties'));
   window.FEMSNumberScrub.install($('site-form'));
   window.FEMSNumberScrub.install($('connection-properties'));
-  library=new window.FEMSAssetLibrary({icon,arm,toast,register:def=>{const next=M.clone(history.current);next.project.assets.push(def);return commit(next);}});
+  library=new window.FEMSAssetLibrary({icon,arm,toast,state:()=>history.current,remove:type=>{finishPropertyEdit();return commit(M.removeAsset(history.current,type));},register:def=>{const next=M.clone(history.current);next.project.assets.push(def);return commit(next);}});
   renderCatalog();render();scene?.fit();
   if(assetStartupMessage)library.showStatus(assetStartupMessage);
   if(startupMessage){$('save-status').textContent='복원 실패 · 자동 저장 중지';toast(startupMessage);}else{$('save-status').textContent='로컬 작업 공간 · 자동 저장';if(branchMigrationMessage)toast(branchMigrationMessage);}

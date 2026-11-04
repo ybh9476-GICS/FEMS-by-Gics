@@ -6,33 +6,33 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="theme-color" content="#183b38">
   <title>FEMS by Gics</title>
-  <link rel="stylesheet" href="css/app.css?v=01bc7e71e1d6e1ae">
-  <link rel="stylesheet" href="css/number-scrub.css?v=01bc7e71e1d6e1ae">
-  <link rel="stylesheet" href="css/equipment-layout.css?v=01bc7e71e1d6e1ae">
-  <link rel="stylesheet" href="css/connections.css?v=01bc7e71e1d6e1ae">
-  <link rel="stylesheet" href="css/panel-resize.css?v=01bc7e71e1d6e1ae">
-  <script defer src="vendor/three.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/asset-format.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/catalog.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/connections.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/shared-connections.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/model.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/default-layout.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/defaults.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/project-file.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/files.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/equipment-3d.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/assets.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/asset-library.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/equipment-thumbnails.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/equipment-tree.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/transform-gizmo.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/connection-view.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/scene.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/number-scrub.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/connection-editor.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/panel-resize.js?v=01bc7e71e1d6e1ae"></script>
-  <script defer src="js/startup.js?v=01bc7e71e1d6e1ae"></script>
+  <link rel="stylesheet" href="css/app.css?v=606a889bd94b8a3d">
+  <link rel="stylesheet" href="css/number-scrub.css?v=606a889bd94b8a3d">
+  <link rel="stylesheet" href="css/equipment-layout.css?v=606a889bd94b8a3d">
+  <link rel="stylesheet" href="css/connections.css?v=606a889bd94b8a3d">
+  <link rel="stylesheet" href="css/panel-resize.css?v=606a889bd94b8a3d">
+  <script defer src="vendor/three.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/asset-format.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/catalog.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/connections.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/shared-connections.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/model.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/default-layout.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/defaults.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/project-file.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/files.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/equipment-3d.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/assets.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/asset-library.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/equipment-thumbnails.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/equipment-tree.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/transform-gizmo.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/connection-view.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/scene.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/number-scrub.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/connection-editor.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/panel-resize.js?v=606a889bd94b8a3d"></script>
+  <script defer src="js/startup.js?v=606a889bd94b8a3d"></script>
 </head>
 <body>
   <header class="topbar">
@@ -132,6 +132,13 @@
       <p id="site-error" class="error-message" role="alert"></p>
       <div class="dialog-actions"><button id="site-cancel" type="button">취소</button><button type="submit" class="primary">적용</button></div>
     </form>
+  </dialog>
+  <dialog id="asset-delete-dialog" aria-labelledby="asset-delete-title" aria-describedby="asset-delete-name asset-delete-message">
+    <h2 id="asset-delete-title">추가 설비를 삭제할까요?</h2>
+    <p id="asset-delete-name"></p>
+    <p id="asset-delete-message"></p>
+    <p id="asset-delete-error" class="error-message" role="alert"></p>
+    <div class="dialog-actions"><button id="asset-delete-cancel" type="button" autofocus>취소</button><button id="asset-delete-confirm" type="button" class="danger">삭제</button></div>
   </dialog>
   <dialog id="asset-dialog" aria-labelledby="asset-title">
     <form id="asset-form">

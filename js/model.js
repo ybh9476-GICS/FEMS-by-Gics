@@ -82,6 +82,13 @@
     }
     return result;
   }
+  function removeAsset(state, type) {
+    if(!state.project?.assets.some(asset=>asset.type===type))throw new Error('삭제할 추가 설비를 찾을 수 없습니다.');
+    const ids=state.equipment.filter(item=>item.type===type).map(item=>item.id);
+    const next=ids.length?removeEquipmentGroup(state,ids):clone(state);
+    next.project.assets=next.project.assets.filter(asset=>asset.type!==type);
+    return validate(next);
+  }
   function reparent(state, id, parentId = null) {
     const next = clone(state), item = next.equipment.find(e => e.id === id);
     if (!item) throw new Error('이동할 설비를 찾을 수 없습니다.');
@@ -258,7 +265,7 @@
     undo() { this.finishEdit(); if (!this.past.length) return false; this.future.push(this.current); this.current = this.past.pop(); return true; }
     redo() { this.finishEdit(); if (!this.future.length) return false; this.past.push(this.current); this.current = this.future.pop(); return true; }
   }
-  const api = { STORAGE_KEY, FORMAT, LIMIT, SITE_MIN, SITE_MAX, siteGridStep, clone, validate, empty, create, duplicateName, demo, extents, clampPosition, resizeDimensions, resizeSite, groupBounds, transformGroup, removeEquipmentGroup, reparent, moveEquipment, moveEquipmentGroup, removeEquipment, overlaps, History };
+  const api = { STORAGE_KEY, FORMAT, LIMIT, SITE_MIN, SITE_MAX, siteGridStep, clone, validate, empty, create, duplicateName, demo, extents, clampPosition, resizeDimensions, resizeSite, groupBounds, transformGroup, removeEquipmentGroup, reparent, moveEquipment, moveEquipmentGroup, removeEquipment, removeAsset, overlaps, History };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.FEMSModel = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

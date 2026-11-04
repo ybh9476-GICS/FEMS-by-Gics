@@ -26,8 +26,35 @@
       $('asset-form').addEventListener('number-scrub-end',event=>this.finishResize(event.detail.commit));
       root.FEMSNumberScrub.install($('asset-form'));
       $('asset-form').addEventListener('submit',event=>{event.preventDefault();this.register();});
+      $('asset-delete-cancel').addEventListener('click',()=>$('asset-delete-dialog').close());
+      $('asset-delete-confirm').addEventListener('click',()=>this.confirmRemove());
+      $('asset-delete-dialog').addEventListener('keydown',event=>event.stopPropagation());
+      $('asset-delete-dialog').addEventListener('close',()=>{this.pendingRemove=null;});
     }
     hideTip(){$('catalog-tooltip').hidden=true;}
+    buttons(){return [...$('catalog').children].map(tile=>tile.className==='equipment-thumbnail-item'?tile.children[0]:tile);}
+    askRemove(def){
+      const state=this.handlers.state(),entry=state.project?.assets.find(asset=>asset.type===def.type);
+      if(!entry)return;
+      this.hideTip();this.handlers.arm(null);
+      this.pendingRemove={type:entry.type,projectId:state.project.id,sha256:entry.sha256};
+      const count=state.equipment.filter(item=>item.type===entry.type).length;
+      $('asset-delete-title').textContent='추가 설비를 삭제할까요?';
+      $('asset-delete-name').textContent=entry.name;
+      $('asset-delete-message').textContent=count?`배치된 설비 ${count}개도 함께 삭제됩니다.\n원본 파일은 보관됩니다.\n실행 취소로 복원할 수 있습니다.`:'현재 프로젝트의 추가 설비 목록에서 삭제합니다.\n원본 파일은 보관됩니다.\n실행 취소로 복원할 수 있습니다.';
+      $('asset-delete-error').textContent='';$('asset-delete-confirm').hidden=false;
+      $('asset-delete-cancel').textContent='취소';
+      $('asset-delete-dialog').showModal();
+    }
+    confirmRemove(){
+      const pending=this.pendingRemove;if(!pending)return;
+      const state=this.handlers.state(),entry=state.project?.assets.find(asset=>asset.type===pending.type);
+      if(state.project?.id!==pending.projectId||!entry||entry.sha256!==pending.sha256){$('asset-delete-error').textContent='목록이 변경되었습니다. 닫고 다시 선택하세요.';return;}
+      try{
+        if(!this.handlers.remove(pending.type))throw new Error('추가 설비를 삭제하지 못했습니다.');
+        $('asset-delete-dialog').close();this.handlers.toast('추가 설비를 삭제했습니다. 실행 취소로 복원할 수 있습니다.');
+      }catch(error){$('asset-delete-error').textContent=error.message;}
+    }
     render(armed){
       for(const kind of ['builtin','custom'])$('catalog-'+kind).setAttribute('aria-pressed',String(this.filter===kind));
       const entries=C.catalog.filter(def=>!!def.custom===(this.filter==='custom'));
@@ -47,7 +74,15 @@
           button.innerHTML=this.handlers.icon(def.type);
           const show=()=>{const tip=$('catalog-tooltip'),rect=button.getBoundingClientRect();tip.querySelector('strong').textContent=def.name;tip.querySelector('span').textContent=def.en;tip.hidden=false;const width=tip.getBoundingClientRect().width;tip.style.left=Math.max(width/2+10,Math.min(innerWidth-width/2-10,rect.left+rect.width/2))+'px';tip.style.top=rect.top-10+'px';};
           button.addEventListener('pointerenter',show);button.addEventListener('focus',show);button.addEventListener('pointerleave',()=>this.hideTip());button.addEventListener('blur',()=>this.hideTip());
-          button.addEventListener('click',()=>{this.hideTip();this.handlers.arm(this.armed===def.type?null:def.type);});$('catalog').append(button);
+          button.addEventListener('click',()=>{this.hideTip();this.handlers.arm(this.armed===def.type?null:def.type);});
+          if(def.custom){
+            const tile=document.createElement('div');tile.className='equipment-thumbnail-item';
+            const remove=document.createElement('button');remove.type='button';remove.className='asset-remove';remove.textContent='×';
+            remove.title=def.name+' 삭제';remove.setAttribute('aria-label',def.name+' 추가 설비 삭제');
+            remove.addEventListener('pointerenter',()=>this.hideTip());remove.addEventListener('focus',()=>this.hideTip());
+            remove.addEventListener('click',event=>{event.stopPropagation();this.askRemove(def);});
+            tile.append(button);tile.append(remove);$('catalog').append(tile);
+          }else $('catalog').append(button);
           const key=imageKey(def);
           if(def.custom&&!this.imageJobs.has(key)){
             this.imageJobs.add(key);
@@ -61,11 +96,11 @@
         $('asset-library-status').hidden=entries.length>0;
         if(!entries.length)$('asset-library-status').textContent='에셋 등록으로 GLB 설비를 추가하세요.';
       }
-      this.armed=armed;for(const button of $('catalog').children)button.setAttribute('aria-pressed',String(armed===button.dataset.type));
+      this.armed=armed;for(const button of this.buttons())button.setAttribute('aria-pressed',String(armed===button.dataset.type));
     }
     showStatus(message){$('asset-library-status').hidden=false;$('asset-library-status').textContent=message;}
     paint(type){
-      const button=[...$('catalog').children].find(b=>b.dataset.type===type);if(!button)return;
+      const button=this.buttons().find(b=>b.dataset.type===type);if(!button)return;
       const key=imageKey(C.get(type));
       if(this.images[key]){const image=document.createElement('img');image.src=this.images[key];image.alt='';image.draggable=false;button.replaceChildren(image);}
       else if(this.images[key]===null){button.disabled=true;button.title='에셋 파일을 확인하세요: '+C.get(type).model;}
