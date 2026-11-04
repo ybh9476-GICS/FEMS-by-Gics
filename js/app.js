@@ -5,16 +5,43 @@
   const P=window.FEMSProjectFile,defaultAssets=window.FEMSDefaultAssets;
   let defaultRevision=window.FEMSDefaultRevision;
   const defaultBackupKey=M.STORAGE_KEY+'-before-default-update';
+  const defaultAppliedKey=M.STORAGE_KEY+'-applied-default';
   let library;
   let bundled=P.attach(window.FEMSDefaults.seed(window.FEMSDefaultLayout),defaultAssets,'new',defaultRevision);
   bundled.project.kind='new';bundled.project.baseRevision=defaultRevision;
   let initial=M.clone(bundled), startupMessage='', autosaveAllowed=true, storageFailed=false;
-  try {const saved=localStorage.getItem(M.STORAGE_KEY);if(saved)initial=M.validate(JSON.parse(saved));}
+  let savedWork=null,previousDefaultWork=null,defaultLoaded=false;
+  try {savedWork=localStorage.getItem(M.STORAGE_KEY);if(savedWork)initial=M.validate(JSON.parse(savedWork));}
   catch(error){autosaveAllowed=false;startupMessage='이전 작업을 읽지 못했습니다. 원본 보존을 위해 자동 저장을 중지했습니다. 파일 열기·프로젝트 저장은 사용할 수 있습니다.';}
   initial=P.attach(initial,defaultAssets);
-  const needsDefaultUpdate=initial.project.kind==='new'&&initial.project.baseRevision!==defaultRevision;
+  if(autosaveAllowed&&initial.project.kind==='new'){
+    try{
+      // Older versions recorded acknowledgement, including "keep work", as baseRevision.
+      // Track actual default application separately so those browsers receive the default once.
+      if(localStorage.getItem(defaultAppliedKey)!==defaultRevision){
+        if(savedWork){
+          const previous=localStorage.getItem(defaultBackupKey);
+          if(previous&&previous!==savedWork){
+            let archive=defaultBackupKey+'-'+Date.now();
+            while(localStorage.getItem(archive))archive+='-1';
+            localStorage.setItem(archive,previous);
+          }
+          localStorage.setItem(defaultBackupKey,savedWork);
+        }
+        localStorage.setItem(M.STORAGE_KEY,JSON.stringify(bundled));
+        previousDefaultWork=savedWork?M.clone(initial):null;
+        initial=M.clone(bundled);defaultLoaded=!!savedWork;
+        localStorage.setItem(defaultAppliedKey,defaultRevision);
+      }
+    }catch(error){
+      autosaveAllowed=false;
+      startupMessage=defaultLoaded?'새 기본 프로젝트를 불러왔지만 자동 저장을 중지했습니다. 이전 작업은 백업되어 있습니다.':'기본 프로젝트 갱신을 저장하지 못해 현재 작업을 유지합니다. 자동 저장을 중지했습니다.';
+    }
+  }
   C.replace(initial.project.assets);
-  const history=new M.History(initial);let selected=null,selectedIds=[],armed=null,view='3d',scene=null,tree=null,links=null,toastTimer;
+  const history=new M.History(previousDefaultWork||initial);
+  if(previousDefaultWork)history.commit(initial);
+  let selected=null,selectedIds=[],armed=null,view='3d',scene=null,tree=null,links=null,toastTimer;
   const branchBackupKey=M.STORAGE_KEY+'-before-shared-branches';
   let branchMigrationMessage='';
   if(autosaveAllowed&&history.current.version===1){
@@ -291,7 +318,7 @@
       defaultSnapshot=await P.prepareDefault(defaultSnapshot,window.FEMSAssets.readBytes,window.FEMSAssets.ensureLocal);
       const response=await fetch('/api/default-layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(defaultSnapshot)});
       if(!response.ok)throw new Error([404,405].includes(response.status)?'로컬 서버를 다시 시작한 뒤 시도하세요.':'파일 쓰기 권한과 로컬 서버 상태를 확인한 뒤 다시 시도하세요.');
-      defaultRevision=await P.revision(defaultSnapshot,defaultSnapshot.project.assets);bundled=M.clone(defaultSnapshot);bundled.project.baseRevision=defaultRevision;history.current.project.baseRevision=defaultRevision;saveLocal();$('default-dialog').close();toast('도면과 추가 에셋 목록을 기본값으로 저장했습니다.');
+      defaultRevision=await P.revision(defaultSnapshot,defaultSnapshot.project.assets);bundled=M.clone(defaultSnapshot);bundled.project.baseRevision=defaultRevision;history.current.project.baseRevision=defaultRevision;saveLocal();try{localStorage.setItem(defaultAppliedKey,defaultRevision);}catch{storageFailed=true;$('save-status').textContent='자동 저장 실패 · 파일로 보관';}$('default-dialog').close();toast('도면과 추가 에셋 목록을 기본값으로 저장했습니다.');
     }catch(error){$('default-error').textContent='기본 프로젝트를 저장하지 못했습니다. '+error.message;}
     finally{defaultSaving=false;$('default-overwrite').disabled=false;$('default-close').disabled=false;$('default-overwrite').textContent='덮어쓰기';}
   });
@@ -326,18 +353,9 @@
   renderCatalog();render();scene?.fit();
   if(assetStartupMessage)library.showStatus(assetStartupMessage);
   if(startupMessage){$('save-status').textContent='복원 실패 · 자동 저장 중지';toast(startupMessage);}else{$('save-status').textContent='로컬 작업 공간 · 자동 저장';if(branchMigrationMessage)toast(branchMigrationMessage);}
-  $('default-update-dialog').addEventListener('keydown',event=>event.stopPropagation());
-  function keepDefaultWork(){history.current.project.baseRevision=defaultRevision;saveLocal();$('default-update-dialog').close();}
-  $('default-update-keep').addEventListener('click',keepDefaultWork);
-  $('default-update-dialog').addEventListener('cancel',event=>{event.preventDefault();keepDefaultWork();});
-  $('default-update-load').addEventListener('click',()=>{
-    try{localStorage.setItem(defaultBackupKey,JSON.stringify(history.current));
-      if(switchProject(M.clone(bundled),'새 기본 프로젝트를 불러왔습니다. 기존 작업은 백업했습니다.'))$('default-update-dialog').close();
-    }catch(error){$('default-update-error').textContent='백업하지 못해 기존 작업을 유지합니다. '+error.message;}
-  });
   $('default-backup-save').addEventListener('click',async()=>{
     try{const backup=M.validate(JSON.parse(localStorage.getItem(defaultBackupKey)));await window.FEMSFiles.save(backup,window.showSaveFilePicker?.bind(window),window.FEMSAssets.readBytes);toast('이전 작업 백업을 저장했습니다.');}
     catch(error){if(error.name!=='AbortError')$('default-error').textContent=error.message;}
   });
-  if(needsDefaultUpdate&&autosaveAllowed)$('default-update-dialog').showModal();
+  if(defaultLoaded&&!startupMessage)toast('새 기본 프로젝트를 불러왔습니다. 이전 작업은 백업했습니다.');
 })();

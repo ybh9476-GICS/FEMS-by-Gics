@@ -56,6 +56,8 @@ test('분기점 이동은 같은 노드를 공유하는 모든 가지를 연결�
 
 function migrateBoot(saved,{failAt=null,previous=null}={}){
   const key=M.STORAGE_KEY,backupKey=key+'-before-shared-branches',storage=new Map([[key,saved]]),writes=[];
+  // Test route-format migration after the current default has already been applied.
+  storage.set(key+'-applied-default','a'.repeat(64));
   if(previous)storage.set(backupKey,previous);
   const context={window:{FEMSCatalog:require("../js/catalog.js"),FEMSProjectFile:require("../js/project-file.js"),FEMSDefaultAssets:[],FEMSDefaultRevision:"a".repeat(64),FEMSModel:M,FEMSConnections:L,FEMSDefaults:D,FEMSDefaultLayout:M.empty()},document:{},localStorage:{
     getItem:key=>storage.get(key)||null,setItem(key,value){writes.push(key);if(key===failAt)throw new Error('quota');storage.set(key,value);}
