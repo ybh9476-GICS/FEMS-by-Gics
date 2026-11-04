@@ -5,6 +5,7 @@
   "description": "독립 실행하는 FEMS 설비 배치 에디터",
   "scripts": {
     "dev": "node scripts/local-server.cjs",
+    "version:assets": "node scripts/version-assets.cjs",
     "test": "node --test tests/*.test.cjs"
   }
 }
