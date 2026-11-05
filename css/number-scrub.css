@@ -5,7 +5,9 @@
   flex: 1;
   margin: 7px 0 0;
 }
-#properties .number-control input {
+#properties .number-control input,
+#floor-registration .number-control input,
+#spatial-properties .number-control input {
   margin: 0;
   padding-right: 27px;
   appearance: textfield;

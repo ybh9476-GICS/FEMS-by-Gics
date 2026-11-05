@@ -5,7 +5,7 @@
     constructor(api){
       this.api=api;this.selection=null;this.edit=null;this.numeric=null;
       for(const [name,color] of L.palette){const button=document.createElement('button');button.type='button';button.title=name;button.setAttribute('aria-label',name);button.dataset.color=color;button.style.setProperty('--swatch',color);button.addEventListener('click',()=>this.changeStyle({color}));$('connection-palette').append(button);}
-      for(const id of ['connection-diameter','connection-x','connection-z']){
+      for(const id of ['connection-diameter','connection-x','connection-y','connection-z']){
         const input=$(id);input.addEventListener('input',()=>this.previewNumeric(input));
         input.addEventListener('focusout',()=>{if(!document.body.dataset.numberScrubbing)this.finishNumeric(true);});
       }
@@ -36,7 +36,10 @@
         if(!this.selection)return;
         this.finishNumeric(true);this.resetId=this.selection.id;
         const scope=L.editScope(this.api.state(),this.resetId);if(!scope)return;
-        $('connection-reset-target').textContent=`대상: ${scope.name} 연결망 전체`;
+        const external=L.external.isExternal(this.resetId);
+        $('connection-reset-target').textContent=`대상: ${scope.name}${external?' (선택한 외부 연결선)':' 연결망 전체'}`;
+        $('connection-reset-description').hidden=external;
+        $('connection-reset-external-description').hidden=!external;
         dialog.returnValue='';dialog.showModal();
       });
       // Modal keyboard actions must not trigger editor shortcuts behind the popup.
@@ -44,7 +47,8 @@
       dialog.addEventListener('close',()=>{
         const id=this.resetId;this.resetId=null;
         if(dialog.returnValue==='restore'&&this.selection?.id===id)this.apply(()=>{
-          const next=L.resetScope(this.api.state(),id);this.selection={id,kind:'segment',index:0};return next;
+          const state=this.api.state(),parentId=L.route(state,id).parentId,next=L.resetScope(state,id);
+          const replacement=L.external.isExternal(id)?L.route(next,id):L.routes(next).find(r=>r.parentId===parentId);this.selection={id:replacement?.id||id,kind:'segment',index:0};return next;
         });
       });
     }
@@ -81,7 +85,7 @@
       try{
         const {state,selection}=this.numeric;let next;
         if(input.id==='connection-diameter')next=L.setStyle(state,selection.id,{diameter:input.valueAsNumber});
-        else{const p={...L.route(state,selection.id).points[selection.index]};p[input.id==='connection-x'?'x':'z']=input.valueAsNumber;const result=L.movePoint(state,selection.id,selection.index,p);this.numeric.result=result;next=result.state;this.selection.index=result.index;}
+        else{const p={...L.route(state,selection.id).points[selection.index]};p[input.id.slice('connection-'.length)]=input.valueAsNumber;const result=L.movePoint(state,selection.id,selection.index,p);this.numeric.result=result;next=result.state;this.selection.index=result.index;}
         this.api.preview(next);input.removeAttribute('aria-invalid');$('connection-error').textContent='';
       }catch(error){input.setAttribute('aria-invalid','true');$('connection-error').textContent=error.message;}
     }
@@ -90,7 +94,7 @@
       if(commit&&result){const cleaned=L.finishMove(result,selection.id);this.selection.index=cleaned.index;this.api.preview(cleaned.state);}
       if(!commit)this.selection=selection;this.api.finish(commit);
       const line=this.selection?L.route(this.api.state(),this.selection.id):null;
-      if(line)input.value=input.id==='connection-diameter'?line.diameter:line.points[this.selection.index]?.[input.id==='connection-x'?'x':'z']??'';
+      if(line)input.value=input.id==='connection-diameter'?line.diameter:line.points[this.selection.index]?.[input.id.slice('connection-'.length)]??'';
       input.removeAttribute('aria-invalid');$('connection-error').textContent='';
     }
     add(){if(this.selection?.kind!=='segment')return;this.apply(()=>{const result=L.addPoint(this.api.state(),this.selection.id,this.selection.index);this.selection={id:this.selection.id,kind:'point',index:result.index};return result.state;});}
@@ -101,10 +105,23 @@
       try{
         const {state,selection,corner}=this.edit,line=L.route(state,selection.id),isPoint=selection.kind==='point';
         if(!isPoint&&!selection.handle)return;
+        if(line.crossSpace){
+          const rounded={...position},moving=options.axis==='xz'?['x','z']:options.axis?[options.axis]:['x','z'];
+          for(const axis of moving){
+            rounded[axis]=Math.round(position[axis]*100)/100;
+            if(options.tolerance>0){
+              const values=line.points.filter((p,i)=>Math.abs(i-selection.index)>1).map(p=>p[axis]);
+              const nearest=values.sort((a,b)=>Math.abs(a-rounded[axis])-Math.abs(b-rounded[axis]))[0];
+              if(nearest!==undefined&&Math.abs(nearest-rounded[axis])<=options.tolerance)rounded[axis]=nearest;
+            }
+          }
+          const result=isPoint?L.movePoint(state,selection.id,selection.index,rounded):L.moveSegment(state,selection.id,selection.index,rounded,{corner});
+          this.edit.result=result;this.selection={...selection,index:result.index};this.api.guides({},corner);this.api.preview(result.state);$('connection-error').textContent='';return;
+        }
         const axes=isPoint?['x','z']:[line.points[selection.index].z===line.points[selection.index+1].z?'z':'x'];
         // Quantize free dragging before snapping, so alignment to fractional corners stays exact.
         const rounded={x:Math.round(position.x*100)/100,z:Math.round(position.z*100)/100};
-        const extra=state.version===2?L.snapCandidates(state,selection.id).filter(p=>!line.points.some(q=>Math.abs(q.x-p.x)<1e-6&&Math.abs(q.z-p.z)<1e-6)):[];
+        const extra=state.version>=2?L.snapCandidates(state,selection.id).filter(p=>!line.points.some(q=>Math.abs(q.x-p.x)<1e-6&&Math.abs(q.z-p.z)<1e-6)):[];
         const snapped=L.snapPosition([...line.points,...extra],isPoint?[selection.index]:[selection.index,selection.index+1],rounded,options.tolerance,this.edit.snap,axes);
         this.edit.snap=snapped.guides;
         const result=isPoint?L.movePoint(state,selection.id,selection.index,snapped.position):L.moveSegment(state,selection.id,selection.index,snapped.position,{corner});
@@ -129,7 +146,7 @@
       $('properties').hidden=true;$('inspector-empty').hidden=true;
       for(const action of ['corner','add','delete','optimize','reset'])$('connection-'+action).hidden=false;
       const parent=state.equipment.find(e=>e.id===line.parentId),child=state.equipment.find(e=>e.id===line.id);
-      $('connection-scope').textContent=`편집 대상: ${L.editScope(state,line.id).name} 연결망 전체`;
+      $('connection-scope').textContent=`편집 대상: ${L.editScope(state,line.id).name}${line.crossSpace?' (외부 연결선)':' 연결망 전체'}`;
       $('connection-title').textContent=line.label||`${parent.name} → ${child.name}`;
       if(document.activeElement!==$('connection-diameter'))$('connection-diameter').value=line.diameter;
       const selectedColor=this.selection.kind==='segment'?line.segmentColors[this.selection.index]:null;
@@ -138,13 +155,14 @@
       const locked=!!point&&L.isLocked(line,this.selection.index),junction=!!point&&line.pointKinds?.[this.selection.index]==='junction';
       $('connection-selection').textContent=point?junction?'공유 분기점 · 연결된 가지와 함께 이동':`포인트 ${this.selection.index+1} / ${line.points.length}${locked?' · 설비 고정점 (이동·삭제 불가)':''}`:`선분 ${this.selection.index+1} · 부모 → 자식`;
       $('connection-point-fields').hidden=!point;
-      for(const axis of ['x','z'])$('connection-'+axis).disabled=locked;
-      if(point)for(const axis of ['x','z'])if(document.activeElement!==$('connection-'+axis))$('connection-'+axis).value=point[axis];
+      $('connection-y-field').hidden=!line.crossSpace;
+      for(const axis of ['x','y','z'])$('connection-'+axis).disabled=locked;
+      if(point)for(const axis of ['x','y','z'])if(document.activeElement!==$('connection-'+axis))$('connection-'+axis).value=point[axis];
       $('connection-add').disabled=this.selection.kind!=='segment'||!line.points[this.selection.index+1];
       $('connection-corner').disabled=$('connection-add').disabled;
       $('connection-corner').setAttribute('aria-pressed',String(!!this.corner));
       $('connection-corner').textContent=this.corner?'코너 추가 취소':'코너 추가';
-      $('connection-edit-hint').textContent=this.corner?'초록 네모를 드래그해 꺾임을 만드세요. Esc: 취소':point?'흰색 포인트 드래그: X·Z 이동 · Shift: 정렬 해제':'중앙 네모 드래그: 선분 이동 · Shift: 정렬 해제';
+      $('connection-edit-hint').textContent=line.crossSpace?(this.corner?'네모 드래그: 코너 추가 · Esc: 취소':point?'화살표: 축 이동 · Y 높이: 속성에서 입력':'중앙 네모 드래그: 선분 이동'):this.corner?'초록 네모를 드래그해 꺾임을 만드세요. Esc: 취소':point?'흰색 포인트 드래그: X·Z 이동 · Shift: 정렬 해제':'중앙 네모 드래그: 선분 이동 · Shift: 정렬 해제';
       $('connection-delete').disabled=!point||!L.canDeletePoint(line,this.selection.index);
       return true;
     }

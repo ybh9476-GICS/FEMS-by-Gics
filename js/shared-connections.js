@@ -8,7 +8,7 @@
   const same=(a,b)=>Math.abs(a.x-b.x)<eps&&Math.abs(a.z-b.z)<eps;
   const length=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
   const color=value=>L.palette.some(([,c])=>c===value);
-  function children(state,parentId){return state.equipment.filter(e=>e.parentId===parentId);}
+  function children(state,parentId){const ids=new Set(L.powerLinks(state).filter(link=>link.from===parentId).map(link=>link.to));return state.equipment.filter(e=>ids.has(e.id));}
   function position(state,node){
     const item=node.equipmentId&&state.equipment.find(e=>e.id===node.equipmentId);
     return item?{x:item.x+(node.offset?.x||0),z:item.z+(node.offset?.z||0)}:{x:node.x,z:node.z};
@@ -52,7 +52,8 @@
     for(const edge of edges){const g=geometry(state,network,edge);points.push(...g.points.slice(points.length?1:0));segmentColors.push(...g.segmentColors);segmentDiameters.push(...g.segmentColors.map(()=>edge.diameter));}
     return {id:childId,points,segmentColors,segmentDiameters,color:edges[0]?.color||L.palette[0][1],diameter:edges[0]?.diameter||.2};
   }
-  function automatic(state,child){
+  function automatic(state,child,parentId){
+    if(state.version>=4){child={...child,parentId};delete child.connection;state={...state,equipment:state.equipment.map(e=>e.id===child.id?child:e)};}
     const old=L.route(state,child.id),parent=state.equipment.find(e=>e.id===child.parentId);
     // Opposite vertical children leave the equipment upward/downward independently.
     if(!child.connection?.bends&&Math.abs(child.z-parent.z)>=Math.abs(child.x-parent.x)){
@@ -60,9 +61,9 @@
     }
     return old;
   }
-  function build(state,parentId,previous=null){
+  function build(state,parentId,previous=null,planned=null){
     const parent=state.equipment.find(e=>e.id===parentId),items=children(state,parentId);
-    const inputs=items.map(child=>previous&&fullPath(state,previous,child.id)||automatic(state,child));
+    const inputs=items.map(child=>planned?.get(child.id)||previous&&fullPath(state,previous,child.id)||automatic(state,child,parentId));
     for(const line of inputs)if(line.points.length===1){line.points.push({...line.points[0]});line.segmentColors=[line.color];}
     const start=inputs[0]?.points[0]||{x:parent.x,z:parent.z};
     const network={parentId,root:'n0',nodes:[{id:'n0',equipmentId:parentId,offset:{x:start.x-parent.x,z:start.z-parent.z}}],edges:[]};
@@ -101,8 +102,10 @@
     return network;
   }
   function reconcile(state){
-    if(state.version!==2)return state;
-    const next=copy(state),parents=[...new Set(next.equipment.filter(e=>e.parentId).map(e=>e.parentId))];
+    if(state.version<2)return state;
+    const next=copy(state);
+    if(next.version>=4){const ids=new Set(next.equipment.map(e=>e.id));next.powerLinks=next.powerLinks.filter(link=>ids.has(link.from)&&ids.has(link.to));}
+    const parents=[...new Set(L.powerLinks(next).map(link=>link.from))];
     next.networks=parents.map(parentId=>{
       const previous=next.networks?.find(n=>n.parentId===parentId),expected=children(next,parentId).map(e=>e.id).sort();
       const actual=previous?.nodes.filter(n=>n.equipmentId&&n.equipmentId!==parentId).map(n=>n.equipmentId).sort();
@@ -112,21 +115,21 @@
     });return next;
   }
   function enableShared(state){
-    if(state.version===2)return reconcile(state);
+    if(state.version>=2)return reconcile(state);
     const next=copy(state);next.version=2;next.networks=[];return reconcile(next);
   }
   function validate(raw,state){
     if(!Array.isArray(raw.networks)||raw.networks.length>300)throw new Error('공유 연결선 데이터가 올바르지 않습니다.');
     const networks=copy(raw.networks),parents=new Set(),edgeIds=new Set();
     const validId=id=>typeof id==='string'&&id.length>0&&id.length<=240;
-    const validPoint=p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.z)&&Math.abs(p.x)<=state.site.width&&Math.abs(p.z)<=state.site.depth;
+    const validPoint=p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.z)&&Math.abs(p.x)<=(state.version>=3?100000:state.site.width)&&Math.abs(p.z)<=(state.version>=3?100000:state.site.depth);
     for(const net of networks){
       if(parents.has(net.parentId)||!state.equipment.some(e=>e.id===net.parentId)||!Array.isArray(net.nodes)||!Array.isArray(net.edges)||net.nodes.length>20000||net.edges.length!==net.nodes.length-1)throw new Error('분기 연결 구조가 올바르지 않습니다.');
       parents.add(net.parentId);const ids=new Set(),equipment=new Set(),incoming=new Map(),out=new Map();
       for(const node of net.nodes){
         if(!validId(node.id)||ids.has(node.id))throw new Error('분기점 ID가 중복되거나 잘못되었습니다.');ids.add(node.id);
         if(node.equipmentId){
-          if(equipment.has(node.equipmentId)||!state.equipment.some(e=>e.id===node.equipmentId&&(e.id===net.parentId||e.parentId===net.parentId))||!validPoint(node.offset))throw new Error('설비 접속점이 올바르지 않습니다.');equipment.add(node.equipmentId);
+          if(equipment.has(node.equipmentId)||!(node.equipmentId===net.parentId||children(state,net.parentId).some(e=>e.id===node.equipmentId))||!validPoint(node.offset))throw new Error('설비 접속점이 올바르지 않습니다.');equipment.add(node.equipmentId);
         }else if(!validPoint(node))throw new Error('분기점 좌표가 올바르지 않습니다.');
       }
       if(!net.nodes.some(n=>n.id===net.root&&n.equipmentId===net.parentId)||equipment.size!==children(state,net.parentId).length+1)throw new Error('설비와 분기 연결이 일치하지 않습니다.');
@@ -138,17 +141,22 @@
       const seen=new Set(),queue=[net.root];for(let i=0;i<queue.length;i++){const id=queue[i];if(seen.has(id))throw new Error('순환 연결은 지원하지 않습니다.');seen.add(id);queue.push(...out.get(id)||[]);}
       if(seen.size!==net.nodes.length)throw new Error('접속점과 연결되지 않은 분기점입니다.');
     }
-    if([...new Set(state.equipment.filter(e=>e.parentId).map(e=>e.parentId))].some(id=>!parents.has(id)))throw new Error('설비의 연결선이 누락되었습니다.');
+    if(L.powerLinks(state).some(link=>!parents.has(link.from)))throw new Error('설비의 연결선이 누락되었습니다.');
     return networks;
+  }
+  function editingSite(state,id){
+    const line=route(state,id),parent=state.equipment.find(e=>e.id===line?.parentId);
+    return state.floors?.find(f=>f.id===parent?.floorId)||state.site;
   }
   function sandbox(state,id){
     const line=route(state,id);if(!line)throw new Error('연결선을 선택하세요.');
     const a=line.points[0],b=line.points.at(-1);
-    return {line,state:{site:state.site,equipment:[{id:'from',x:a.x,z:a.z},{id:'to',parentId:'from',x:b.x,z:b.z,connection:{diameter:line.diameter,color:line.color,bends:line.points.slice(1,-1),end:{x:0,z:0},segmentColors:line.segmentColors}}]}};
+    return {line,state:{site:editingSite(state,id),equipment:[{id:'from',x:a.x,z:a.z},{id:'to',parentId:'from',x:b.x,z:b.z,connection:{diameter:line.diameter,color:line.color,bends:line.points.slice(1,-1),end:{x:0,z:0},segmentColors:line.segmentColors}}]}};
   }
   function storeRoute(state,id,points,colors){
     if(points.length<2||points.length>66)throw new Error('연결선 중간 포인트는 최대 64개입니다.');
-    if(points.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.z)||Math.abs(p.x)>state.site.width/2||Math.abs(p.z)>state.site.depth/2))throw new Error('연결선 포인트는 부지 안에 놓으세요.');
+    const site=editingSite(state,id);
+    if(points.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.z)||Math.abs(p.x)>site.width/2||Math.abs(p.z)>site.depth/2))throw new Error('연결선 포인트는 현재 공간 안에 놓으세요.');
     const next=copy(state),found=find(next,id);if(!found)throw new Error('연결선을 찾을 수 없습니다.');
     const line=route(state,id),assigned=colors||line.segmentColors;
     if(!same(points[0],line.points[0])||!same(points.at(-1),line.points.at(-1)))throw new Error('공유 분기점은 포인트 이동으로 변경하세요.');
@@ -164,7 +172,8 @@
     const line=route(state,id);if(!line?.points[index])throw new Error('이동할 포인트를 선택하세요.');
     if(L.isLocked(line,index))throw new Error('설비 접속점은 이동할 수 없습니다.');
     if(line.nodeIds[index]){
-      if(!Number.isFinite(p.x)||!Number.isFinite(p.z)||Math.abs(p.x)>state.site.width/2||Math.abs(p.z)>state.site.depth/2)throw new Error('분기점은 부지 안에 놓으세요.');
+      const site=editingSite(state,id);
+      if(!Number.isFinite(p.x)||!Number.isFinite(p.z)||Math.abs(p.x)>site.width/2||Math.abs(p.z)>site.depth/2)throw new Error('분기점은 현재 공간 안에 놓으세요.');
       const next=copy(state),{network,edge}=find(next,id),node=network.nodes.find(n=>n.id===(index===0?edge.from:edge.to));
       // Keep each incident leg's direction at the junction. Move its first corner
       // with the junction instead of inserting an elbow that retraces that leg.
@@ -202,8 +211,21 @@
     return {...cleaned,state:storeRoute(result.state,id,line.points,line.segmentColors)};
   }
   function reset(state,id){return applyLegacy(state,id,'reset',[]);}
+  function optimal(state,id){
+    const found=find(state,id);if(!found)throw new Error('연결선을 선택하세요.');
+    const Routing=typeof module!=='undefined'&&module.exports?require('./optimal-routing.js'):globalThis.FEMSOptimalRouting;
+    const parent=state.equipment.find(e=>e.id===found.network.parentId),floorId=parent.floorId||null;
+    const items=state.equipment.filter(e=>(e.floorId||null)===floorId);
+    const targets=children(state,parent.id).filter(e=>(e.floorId||null)===floorId).map(item=>({item,line:fullPath(state,found.network,item.id)}));
+    if(!targets.length)throw new Error('현재 공간 안의 연결선을 선택하세요.');
+    const otherLines=routes(state).filter(r=>r.parentId!==parent.id&&(state.equipment.find(e=>e.id===r.parentId)?.floorId||null)===floorId&&r.childIds.some(id=>items.some(e=>e.id===id)));
+    const site=state.floors?.find(f=>f.id===floorId)||state.site;
+    const planned=Routing.plan({source:parent,targets,items,site,buildings:floorId?[]:state.buildings||[],otherLines});
+    const next=copy(state),network=build(next,parent.id,found.network,new Map(planned.map(line=>[line.id,line])));
+    next.networks=next.networks.map(n=>n.parentId===parent.id?network:n);validate(next,next);return next;
+  }
   function snapCandidates(state,id){const line=route(state,id);return routes(state).filter(r=>r.parentId===line?.parentId).flatMap(r=>r.points);}
-  return {enableShared,reconcile,validate,route,routes,storeRoute,setStyle,setSegmentColor,movePoint,finishMove,reset,snapCandidates,
+  return {enableShared,reconcile,validate,route,routes,storeRoute,setStyle,setSegmentColor,movePoint,finishMove,reset,optimal,snapCandidates,
     moveSegment:(state,id,...args)=>applyLegacy(state,id,'moveSegment',args,true),addPoint:(state,id,...args)=>applyLegacy(state,id,'addPoint',args,true),
     deletePoint:(state,id,index)=>{const line=route(state,id);if(!L.canDeletePoint(line,index))throw new Error('공유 분기점은 이동할 수 있지만 삭제할 수 없습니다.');return applyLegacy(state,id,'deletePoint',[index]);},
     optimize:(state,id)=>applyLegacy(state,id,'optimize',[])};

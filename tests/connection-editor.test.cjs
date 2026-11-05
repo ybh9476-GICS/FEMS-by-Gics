@@ -118,3 +118,13 @@ test('최적화 결과는 제거 개수 또는 보존 이유를 표시하고 변
     editor.clear();assert.equal(elements.get('connection-feedback').textContent,'');
   }
 });
+
+test('외부 포인트 Y 수치 입력·드래그·취소·복원은 같은 선택을 유지한다',()=>{
+ const S=require('../js/spatial.js'),{editor,history,elements}=fixture();let state=S.upgrade(L.enableShared(M.empty()));
+ state.floors=[{id:'f',name:'층',x:0,z:0,rotation:0,width:20,depth:20,height:1,elevation:8}];state.equipment=[{...M.create('panel',state,-20,0),id:'from'},{...M.create('panel',state,2,3),id:'to',floorId:'f'}];state=L.changePowerLink(L.upgradePower(state),'from','to');history.commit(state);
+ const id=L.external.idFor('from','to'),hit={id,kind:'point',index:1};editor.select(hit);editor.render('3d');assert.equal(elements.get('connection-y-field').hidden,false);
+ const input=elements.get('connection-y');input.id='connection-y';input.valueAsNumber=5;editor.previewNumeric(input);editor.finishNumeric(true);
+ assert.equal(L.route(history.current,id).points[editor.selection.index].y,5);
+ const before=M.clone(history.current);editor.start(editor.selection);editor.preview({...L.route(before,id).points[editor.selection.index],y:6},{axis:'y'});editor.finish(false);assert.deepEqual(history.current,before);
+ const dialog=elements.get('connection-reset-dialog');elements.get('connection-reset').listeners.click();assert.equal(elements.get('connection-reset-external-description').hidden,false);assert.equal(elements.get('connection-reset-description').hidden,true);dialog.returnValue='restore';dialog.listeners.close();assert.equal(editor.selection.id,id);assert.equal(editor.selection.index,0);assert.deepEqual(history.current,L.resetScope(before,id));
+});

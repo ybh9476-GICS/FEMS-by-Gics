@@ -2,6 +2,7 @@
   'use strict';
   const C = typeof module !== 'undefined' && module.exports ? require('./catalog.js') : root.FEMSCatalog;
   const L = typeof module !== 'undefined' && module.exports ? require('./connections.js') : root.FEMSConnections;
+  const S = typeof module !== 'undefined' && module.exports ? require('./spatial.js') : root.FEMSSpatial;
   const STORAGE_KEY = 'gics-fems-workspace-v1';
   const FORMAT = 'gics-fems';
   const LIMIT = 300;
@@ -32,20 +33,20 @@
       z: Math.round(Math.max(-site.depth / 2 + e.z, Math.min(site.depth / 2 - e.z, z)) * 1000) / 1000 };
   }
   function resizeSite(state, width, depth) {
-    const site = { width: number(width, SITE_MIN, SITE_MAX, '바닥 가로'), depth: number(depth, SITE_MIN, SITE_MAX, '바닥 세로') };
-    for (const item of state.equipment) {
+    const site = { width: number(width, SITE_MIN, SITE_MAX, '대지 가로'), depth: number(depth, SITE_MIN, SITE_MAX, '대지 세로') };
+    for (const item of state.equipment.filter(e=>!e.floorId)) {
       const e = extents(item);
       if (Math.abs(item.x) + e.x > width / 2 + .002 || Math.abs(item.z) + e.z > depth / 2 + .002)
-        throw new Error(`${item.name}이(가) 바닥 밖으로 벗어납니다. 크기를 늘려주세요.`);
+        throw new Error(`${item.name}이(가) 대지 밖으로 벗어납니다. 크기를 늘려주세요.`);
     }
-    if (L.routes(state).some(line => line.points.some(p => Math.abs(p.x) > width / 2 + .002 || Math.abs(p.z) > depth / 2 + .002)))
-      throw new Error('연결선이 바닥 밖으로 벗어납니다. 크기를 늘려주세요.');
+    if (L.routes(state).some(line => !state.equipment.find(e=>e.id===line.parentId)?.floorId && line.points.some(p => Math.abs(p.x) > width / 2 + .002 || Math.abs(p.z) > depth / 2 + .002)))
+      throw new Error('연결선이 대지 밖으로 벗어납니다. 크기를 늘려주세요.');
     const next = clone(state);
     next.site = site;
     return validate(next);
   }
   function validate(raw) {
-    if (!raw || raw.format !== FORMAT || ![1,2].includes(raw.version)) throw new Error('FEMS v1/v2 도면(.fems)만 열 수 있습니다. WMS 도면은 호환되지 않습니다.');
+    if (!raw || raw.format !== FORMAT || ![1,2,3,4].includes(raw.version)) throw new Error('FEMS v1~v4 프로젝트(.fems)만 열 수 있습니다. WMS 도면은 호환되지 않습니다.');
     const result = { format: FORMAT, version: raw.version, name: text(raw.name, '도면 이름'), site: {
       width: number(raw.site?.width, SITE_MIN, SITE_MAX, '부지 가로'), depth: number(raw.site?.depth, SITE_MIN, SITE_MAX, '부지 세로') }, equipment: [] };
     if (!Array.isArray(raw.equipment) || raw.equipment.length > LIMIT) throw new Error(`설비는 최대 ${LIMIT}개까지 지원합니다.`);
@@ -53,15 +54,16 @@
     for (const item of raw.equipment) {
       if (!item || !C.get(item.type)) throw new Error('알 수 없는 설비 종류가 포함되어 있습니다.');
       const clean = { id: text(item.id, '설비 ID'), type: item.type, code: equipmentCode(item.code), name: text(item.name, '설비 이름'),
-        x: number(item.x, -result.site.width / 2, result.site.width / 2, 'X 좌표'), z: number(item.z, -result.site.depth / 2, result.site.depth / 2, 'Z 좌표'),
+        x: number(item.x, item.floorId?-100000:-result.site.width / 2, item.floorId?100000:result.site.width / 2, 'X 좌표'), z: number(item.z, item.floorId?-100000:-result.site.depth / 2, item.floorId?100000:result.site.depth / 2, 'Z 좌표'),
         rotation: number(item.rotation, 0, 359.999, '회전'), width: number(item.width, 0.2, 30, '가로'),
         depth: number(item.depth, 0.2, 30, '세로'), height: number(item.height, 0.2, 40, '높이') };
       if (ids.has(clean.id) || (clean.code && codes.has(clean.code.toUpperCase()))) throw new Error('설비 ID와 지정된 코드는 중복될 수 없습니다.');
+      if(item.floorId!=null){if(raw.version<3)throw new Error('층 소속은 v3 이상 프로젝트에 저장해야 합니다.');clean.floorId=text(item.floorId,'층 ID');}
       if (item.parentId != null) clean.parentId = text(item.parentId, '상위 설비 ID');
       Object.assign(clean,L.clean(item,result.site));
       ids.add(clean.id); if(clean.code)codes.add(clean.code.toUpperCase());
       const e = extents(clean);
-      if (Math.abs(clean.x) + e.x > result.site.width / 2 + 0.002 || Math.abs(clean.z) + e.z > result.site.depth / 2 + 0.002) throw new Error(`${clean.code || clean.name}: 설비가 부지 경계를 벗어납니다.`);
+      if (!clean.floorId && (Math.abs(clean.x) + e.x > result.site.width / 2 + 0.002 || Math.abs(clean.z) + e.z > result.site.depth / 2 + 0.002)) throw new Error(`${clean.code || clean.name}: 설비가 부지 경계를 벗어납니다.`);
       result.equipment.push(clean);
     }
     const byId = new Map(result.equipment.map(item => [item.id, item]));
@@ -74,7 +76,10 @@
         seen.add(parent);parent = byId.get(parent).parentId;
       }
     }
-    if(raw.version===2)result.networks=L.validateNetworks(raw,result);
+    if(raw.version>=3)S.validate(raw,result);
+    if(raw.version>=4)result.powerLinks=L.validatePowerLinks(raw.powerLinks,result.equipment);
+    if(raw.version>=2)result.networks=L.validateNetworks(raw,result);
+    if(raw.externalRoutes!=null)result.externalRoutes=L.external.validate(raw.externalRoutes,result);
     if(raw.project!=null){
       const p=raw.project,F=typeof module!=='undefined'&&module.exports?require('./asset-format.js'):root.FEMSAssetFormat;
       if(!['new','file'].includes(p.kind)||typeof p.baseRevision!=='string'||(p.baseRevision!==''&&!/^[a-f0-9]{64}$/.test(p.baseRevision)))throw new Error('프로젝트 정보가 올바르지 않습니다.');
@@ -85,7 +90,8 @@
   function removeAsset(state, type) {
     if(!state.project?.assets.some(asset=>asset.type===type))throw new Error('삭제할 추가 설비를 찾을 수 없습니다.');
     const ids=state.equipment.filter(item=>item.type===type).map(item=>item.id);
-    const next=ids.length?removeEquipmentGroup(state,ids):clone(state);
+    let next=ids.length?removeEquipmentGroup(state,ids):clone(state);
+    for(const item of S.all(next).filter(e=>e.type===type))next=S.remove(next,item.id);
     next.project.assets=next.project.assets.filter(asset=>asset.type!==type);
     return validate(next);
   }
@@ -171,7 +177,7 @@
   function demo() {
     const state = empty(); state.name = 'FEMS 설비 배치 예시';
     const positions = [[-15,-6],[-7,-6],[0,-6],[7,-6],[-7,5],[0,5],[7,5],[-15,6],[15,4]];
-    C.builtin.forEach((def, i) => state.equipment.push(create(def.type, state, ...positions[i])));
+    ['tower','receiving','transformer','distribution','mcc','panel','ups','solar','ess'].forEach((type, i) => state.equipment.push(create(type, state, ...positions[i])));
     return validate(state);
   }
   function resizeDimensions(item, field, value, lockRatio = true) {
@@ -228,6 +234,7 @@
     }
     const collisions = new Set();
     for (let i=0; i<state.equipment.length; i++) for (let j=i+1; j<state.equipment.length; j++) {
+      if((state.equipment[i].floorId||null)!==(state.equipment[j].floorId||null))continue;
       const a = corners(state.equipment[i]), b = corners(state.equipment[j]);
       const separated = [a,b].some(poly => [0,1].some(k => {
         const axis = {x:poly[k+1].z-poly[k].z, z:poly[k].x-poly[k+1].x};

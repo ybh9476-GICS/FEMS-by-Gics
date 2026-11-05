@@ -44,6 +44,11 @@ test('도면 행에 드롭하면 최상위 부모(null)로 이동하며 계층 �
   const target=tree.dropTarget({clientX:100,clientY:25});assert.equal(target.parentId,null);assert.equal(target.position,'inside');assert.equal(target.element,row);
   assert.equal(tree.state.equipment[0].parentId,'b');assert.equal(tree.dropTarget({clientX:300,clientY:25}),null);
 });
+
+test('계층 드롭은 공간 대상 검증과 기존 순환 방지를 함께 적용한다',()=>{
+  const tree=Object.create(Tree.prototype);Object.assign(tree,{dragged:'a',draggedIds:['a'],state:{equipment:[{id:'a'},{id:'b',parentId:'a'}]},handlers:{dropInfo:(ids,id)=>id==='building'?{valid:false,label:'층을 선택하세요.'}:null}});
+  assert.equal(tree.allowed('building'),false);assert.equal(tree.allowed('b'),false);assert.equal(tree.allowed('floor'),true);assert.equal(tree.allowed(null),true);
+});
 test('수정 키 클릭은 선택만 하고 선택된 항목 드래그는 전체 선택을 전달한다',()=>{
   const tree=Object.create(Tree.prototype),listeners={},classes=new Set(),row={dataset:{id:'a'},classList:{toggle(name,on){if(on)classes.add(name);else classes.delete(name);},remove(name){classes.delete(name);}},addEventListener:(key,fn)=>listeners[key]=fn,setPointerCapture(){},hasPointerCapture:()=>false};
   const moves=[];Object.assign(tree,{selectedIds:['a','b'],state:{equipment:[{id:'a'},{id:'b'},{id:'c'},{id:'child',parentId:'b'}]},collapsed:new Set(['c']),host:{querySelectorAll:()=>[row],parentElement:{getBoundingClientRect:()=>({top:0,bottom:200})}},clearTarget(){},showTarget(){},dropTarget:()=>({parentId:'c',position:'inside'}),handlers:{error:message=>assert.fail(message),reparent:(...args)=>moves.push(args)}});

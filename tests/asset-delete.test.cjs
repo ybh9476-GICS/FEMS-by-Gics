@@ -15,7 +15,7 @@ test('추가 설비 삭제는 프로젝트 목록만 변경하고 한 번의 실
 test('기본 설비는 목록 삭제를 차단한다',()=>{
   const s=state();C.replace(s.project.assets);s.equipment.push(M.create(asset.type,s));
   const before=M.clone(s);
-  assert.throws(()=>M.removeAsset(s,'tower'),/추가 설비/);assert.equal(C.builtin.length,9);C.replace([]);
+  assert.throws(()=>M.removeAsset(s,'tower'),/추가 설비/);assert.ok(C.builtin.some(def=>def.type==='tower'));C.replace([]);
   assert.deepEqual(s,before);
 });
 test('추가 설비의 모든 배치를 함께 삭제하고 다른 종류의 자식과 연결망은 보존하며 한 번에 복원한다',()=>{
@@ -50,7 +50,7 @@ test('썸네일 ×는 배치 버튼과 분리되고 팝업 확인 전·취소·E
   f.get('asset-delete-cancel').events.click();assert.equal(f.removed,0);assert.equal(f.library.pendingRemove,null);
   f.library.askRemove(asset);f.get('asset-delete-dialog').close();assert.equal(f.removed,0);
   f.library.askRemove(asset);f.get('asset-delete-confirm').events.click();assert.equal(f.removed,1);assert.equal(f.h.current.project.assets.length,0);assert.equal(f.get('asset-delete-dialog').open,false);
-  f.library.filter='builtin';f.library.render(null);assert.equal(f.get('catalog').children.length,9);assert.ok(f.get('catalog').children.every(n=>n.className==='equipment-thumbnail'));
+  f.library.filter='builtin';f.library.render(null);assert.equal(f.get('catalog').children.length,C.builtin.length);assert.ok(f.get('catalog').children.every(n=>n.className==='equipment-thumbnail'));
   assert.equal(button.draggable,true);C.replace([]);
 });
 test('배치 수 경고 후 확인할 때만 함께 삭제하며 프로젝트가 바뀌면 차단한다',()=>{

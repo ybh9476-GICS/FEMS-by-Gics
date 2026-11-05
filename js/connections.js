@@ -234,8 +234,33 @@
     return points.length===line.points.length?copy(state):storeRoute(state,id,points,colors);
   }
   const api={palette,clean,style,orthogonal,route,routes,setStyle,setSegmentColor,storeRoute,movePoint,moveSegment,finishMove,snapPosition,addPoint,deletePoint,optimize,reset};
+  // v4 separates the management tree from directed electrical links.
+  api.powerLinks=state=>state.version>=4?state.powerLinks:state.equipment.filter(e=>e.parentId).map(e=>({from:e.parentId,to:e.id}));
+  api.validatePowerLinks=(links,equipment)=>{
+    if(!Array.isArray(links)||links.length>10000)throw new Error('전력 연결 목록이 올바르지 않습니다.');
+    const ids=new Set(equipment.map(e=>e.id)),seen=new Set(),out=new Map();
+    const result=links.map(link=>{
+      if(!link||!ids.has(link.from)||!ids.has(link.to)||link.from===link.to)throw new Error('전력 연결의 출발·도착 설비가 올바르지 않습니다.');
+      const key=JSON.stringify([link.from,link.to]);if(seen.has(key))throw new Error('이미 연결된 설비입니다.');seen.add(key);
+      if(!out.has(link.from))out.set(link.from,[]);out.get(link.from).push(link.to);return {from:link.from,to:link.to};
+    });
+    const visiting=new Set(),done=new Set();const visit=id=>{if(visiting.has(id))throw new Error('순환하는 전력 연결은 추가할 수 없습니다.');if(done.has(id))return;visiting.add(id);for(const next of out.get(id)||[])visit(next);visiting.delete(id);done.add(id);};
+    for(const id of ids)visit(id);return result;
+  };
+  api.upgradePower=state=>{
+    if(state.version>=4)return copy(state);
+    const next=api.enableShared(state);next.powerLinks=api.powerLinks(next);next.version=4;next.buildings??=[];next.floors??=[];return next;
+  };
+  api.changePowerLink=(state,from,to,connect=true)=>{
+    const next=api.upgradePower(state);
+    next.powerLinks=next.powerLinks.filter(link=>link.from!==from||link.to!==to);
+    if(connect)next.powerLinks.push({from,to});
+    next.powerLinks=api.validatePowerLinks(next.powerLinks,next.equipment);
+    return api.reconcileNetworks(next);
+  };
   // Editing scope follows equipment ancestry, including networks of nested parents.
   api.rootEquipmentId=(state,id)=>{
+    if(state.version>=4)return state.equipment.some(e=>e.id===id)?id:null;
     const items=new Map(state.equipment.map(e=>[e.id,e])),seen=new Set();
     while(items.get(id)?.parentId&&!seen.has(id)){seen.add(id);id=items.get(id).parentId;}
     return items.has(id)?id:null;
@@ -243,10 +268,12 @@
   api.editScope=(state,id)=>{
     const lines=api.routes(state),line=lines.find(r=>r.id===id);
     if(!line)return null;
-    const rootId=api.rootEquipmentId(state,line.parentId);
-    return {rootId,name:state.equipment.find(e=>e.id===rootId)?.name||'',ids:lines.filter(r=>api.rootEquipmentId(state,r.parentId)===rootId).map(r=>r.id)};
+    const rootId=api.rootEquipmentId(state,line.parentId),floorId=state.equipment.find(e=>e.id===line.parentId)?.floorId||null;
+    const inSpace=r=>state.version<3||[r.parentId,...r.childIds||[r.id]].every(id=>(state.equipment.find(e=>e.id===id)?.floorId||null)===floorId);
+    return {rootId,name:state.equipment.find(e=>e.id===rootId)?.name||'',ids:lines.filter(r=>api.rootEquipmentId(state,r.parentId)===rootId&&inSpace(r)).map(r=>r.id)};
   };
   api.resetScope=(state,id)=>{
+    if(state.version>=4)return api.optimalNetwork(state,id);
     const scope=api.editScope(state,id);if(!scope)throw new Error('연결선을 선택하세요.');
     return scope.ids.reduce((next,edgeId)=>api.reset(next,edgeId),state);
   };
@@ -256,9 +283,9 @@
     const legacy={...api},shared=factory(legacy);
     for(const name of ['route','routes','setStyle','setSegmentColor','storeRoute','movePoint','moveSegment','finishMove','addPoint','deletePoint','optimize','reset'])api[name]=(state,...args)=>{
       const document=name==='finishMove'?state?.state:state;
-      return document?.version===2?shared[name](state,...args):legacy[name](state,...args);
+      return document?.version>=2?shared[name](state,...args):legacy[name](state,...args);
     };
-    Object.assign(api,{enableShared:shared.enableShared,reconcileNetworks:shared.reconcile,validateNetworks:shared.validate,snapCandidates:shared.snapCandidates});
+    Object.assign(api,{enableShared:shared.enableShared,reconcileNetworks:shared.reconcile,validateNetworks:shared.validate,snapCandidates:shared.snapCandidates,optimalNetwork:shared.optimal});
   };
-  if(typeof module!=='undefined'&&module.exports){module.exports=api;api.installShared(require('./shared-connections.js'));}else root.FEMSConnections=api;
+  if(typeof module!=='undefined'&&module.exports){module.exports=api;api.installShared(require('./shared-connections.js'));require('./external-connections.js')(api);}else root.FEMSConnections=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

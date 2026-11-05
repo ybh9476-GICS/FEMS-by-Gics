@@ -32,7 +32,7 @@
       handle.className = 'number-scrub';
       handle.dataset.numberScrub = input.name;
       handle.setAttribute('aria-hidden', 'true');
-      handle.title = '좌우로 드래그하여 값 조정 · Esc로 취소';
+      handle.title = '좌우 드래그: 빠른 조절 · Shift+드래그: 미세 조절 · Esc: 취소';
       handle.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3 1 8l4 5M1 8h14M11 3l4 5-4 5"/></svg>';
       wrapper.appendChild(handle);
 
@@ -47,7 +47,7 @@
         const angle = input.name === 'rotation';
         drag = {
           input, handle, pointerId: event.pointerId, startX: event.clientX,
-          start, original: input.value, step: angle ? 1 : 0.01,
+          start, original: input.value, step: angle ? 1 : event.shiftKey ? 0.01 : 0.1,
           pixelsPerStep: angle ? 8 : 2,
           min: input.min === '' ? -Infinity : Number(input.min),
           max: input.max === '' ? Infinity : Number(input.max)
@@ -79,13 +79,16 @@
       handle.addEventListener('click', event => event.preventDefault());
     });
 
-    win.addEventListener('blur', () => finish(false));
-    doc.addEventListener('keydown', event => {
+    const onBlur = () => finish(false);
+    const onKey = event => {
       if (!drag || event.key !== 'Escape') return;
       event.preventDefault();
       event.stopPropagation();
       finish(false);
-    }, true);
+    };
+    win.addEventListener('blur', onBlur);
+    doc.addEventListener('keydown', onKey, true);
+    return () => { finish(false); win.removeEventListener('blur', onBlur); doc.removeEventListener('keydown', onKey, true); };
   }
 
   root.FEMSNumberScrub = { install };

@@ -37,8 +37,8 @@ test('누락된 추가 설비·모델 읽기 실패 시 불완전한 프로젝�
 });
 test('새 도면은 도면·에셋 목록만 초기화하며 실행 취소·다시 실행과 저장 복원에 함께 포함된다',()=>{
   const state=project(),h=new M.History(state),empty=P.attach(M.empty(),[],'new','a'.repeat(64));
-  h.commit(empty);C.replace(h.current.project.assets);assert.equal(C.catalog.length,9);assert.equal(h.current.equipment.length,0);
-  h.undo();C.replace(h.current.project.assets);assert.equal(C.catalog.length,12);assert.deepEqual(h.current,state);
+  h.commit(empty);C.replace(h.current.project.assets);assert.equal(C.catalog.length,C.builtin.length);assert.equal(h.current.equipment.length,0);
+  h.undo();C.replace(h.current.project.assets);assert.equal(C.catalog.length,C.builtin.length+3);assert.deepEqual(h.current,state);
   h.redo();assert.deepEqual(M.validate(JSON.parse(JSON.stringify(h.current))),empty);
 });
 test('기본값 지문은 도면이나 추가 에셋 구성이 바뀔 때 달라진다',async()=>{

@@ -10,6 +10,41 @@ for (const file of ['vendor/three.js', 'js/scene.js']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), context);
 }
 const T = context.THREE, Scene = context.FEMSScene;
+test('외부 연결 빌보드는 끝점에 투영되고 클릭·숨김·공간 변경을 처리한다',()=>{
+  const original=context.document;
+  context.document={createElement(){return {style:{},dataset:{},events:{},addEventListener(k,fn){this.events[k]=fn;},setAttribute(){},remove(){this.removed=true;}};}};
+  try{for(const mode of ['plan','3d']){
+    const {scene}=fixture(mode);scene.state.equipment=[];scene.labels=new Map();scene.showLabels=true;
+    scene.labelHost={appendChild(){},removeAttribute(){}};
+    scene.connections={lines:[{id:'portal',height:.2,portal:{targetId:'remote',name:'다른 층 설비',path:'건물 › 2F › 다른 층 설비',point:{x:10,z:2}}}]};
+    const visits=[];scene.handlers.navigateEquipment=id=>visits.push(id);scene.syncPortalLabels();scene.updateLabels();
+    const label=scene.portalLabels.get('portal'),point=new T.Vector3(10,.2,2).project(scene.camera);
+    assert.equal(label.hidden,false);assert.ok(Math.abs(parseFloat(label.style.left)-(point.x+1)/2*scene.width)<1e-8);
+    assert.ok(Math.abs(parseFloat(label.style.top)-(1-point.y)/2*scene.height)<1e-8);
+    label.events.click();assert.deepEqual(visits,['remote']);
+    scene.armed='panel';scene.updateLabels();assert.equal(label.disabled,true);label.events.click();assert.equal(visits.length,1);
+    scene.armed=null;scene.showLabels=false;scene.updateLabels();assert.equal(label.hidden,true);
+    scene.connections.lines=[];scene.syncPortalLabels();assert.equal(label.removed,true);assert.equal(scene.portalLabels.size,0);
+  }}finally{context.document=original;}
+});
+
+test('높은 건물과 지하층도 평면도 카메라의 표시 범위에 포함된다',()=>{
+  const {scene}=fixture('plan');scene.state.equipment=[{x:0,z:0,y:-1000,height:.2},{x:0,z:0,y:1000,height:200}];scene.fit();
+  for(const y of [-1000,1200]){const p=new T.Vector3(0,y,0).project(scene.camera);assert.ok(Math.abs(p.z)<=1);}
+});
+
+test('대지와 다른 객체를 유지해도 포커싱은 선택 건물 범위만 사용한다',()=>{
+  for(const mode of ['3d','plan']){
+    const {scene}=fixture(mode);scene.state.site={width:1000,depth:1000};
+    scene.state.equipment.push({x:-400,z:-400,y:0,height:200});
+    scene.state.focusBounds={x:30,z:-20,width:20,depth:16,low:-4,high:12};scene.fit();
+    assert.deepEqual([scene.target.x,scene.target.y,scene.target.z],[30,4,-20]);assert.ok(scene.radius<100);
+    for(const x of [20,40])for(const z of [-28,-12])for(const y of [-4,12]){
+      const point=new T.Vector3(x,y,z).project(scene.camera);assert.ok(Math.abs(point.x)<=1&&Math.abs(point.y)<=1);
+    }
+    scene.state.focusBounds=null;scene.fit();assert.equal(scene.target.x,0);assert.ok(scene.radius>1000);
+  }
+});
 
 test('큰 바닥의 전체 보기·줌·이동은 기존 500m·120m 제한을 넘고 모서리가 화면에 들어온다',()=>{
   for(const mode of ['plan','3d'])for(const size of [.1,100000]) {
@@ -159,3 +194,49 @@ for (const mode of ['plan', '3d']) {
     }
   });
 }
+
+
+for(const mode of ['3d','plan'])test(`${mode}: 빌보드 클릭만 진입 콜백을 호출하고 모델 클릭·드래그는 호출하지 않는다`,()=>{
+  const {scene,listeners}=fixture(mode),events=[];scene.showLabels=true;scene.pick=()=> 'test';
+  scene.labels=new Map([['test',{hidden:false,getBoundingClientRect:()=>({left:180,right:220,top:180,bottom:220})}]]);
+  scene.handlers.select=id=>events.push(['select',id]);scene.handlers.selectLabel=id=>events.push(['label',id]);
+  const e={button:0,pointerId:1,clientX:200,clientY:200};
+  listeners.pointerdown(e);listeners.pointerup(e);assert.deepEqual(events.pop(),['label','test']);
+  listeners.pointerdown({...e,altKey:true});listeners.pointerup(e);assert.deepEqual(events.pop(),['label','test']);
+  listeners.pointerdown({...e,clientX:250});listeners.pointerup({...e,clientX:250});assert.deepEqual(events.pop(),['select','test']);
+  listeners.pointerdown(e);listeners.pointermove({...e,clientX:260});listeners.pointerup({...e,clientX:260});assert.equal(events.length,0);
+  scene.state.floors=[{id:'test'}];scene.showLabels=false;assert.equal(scene.pickLabel(e),'test');
+});
+
+for(const mode of ['3d','plan'])test(`${mode}: 층 형상은 호버·선택에서 제외하고 빌보드는 층 강조와 진입을 유지한다`,()=>{
+  const {scene,listeners}=fixture(mode),events=[],floor=scene.state.equipment[0];
+  scene.state.floors=[{id:floor.id}];scene.showLabels=true;
+  scene.pick=Scene.prototype.pick;scene.setPointer=()=>{};
+  let hits=[{object:{userData:{equipmentId:floor.id}}}];scene.ray={intersectObjects:()=>hits};
+  scene.labels=new Map([[floor.id,{hidden:false,getBoundingClientRect:()=>({left:180,right:220,top:180,bottom:220})}]]);
+  scene.hoverBox={visible:false,box:new T.Box3()};
+  scene.handlers.select=id=>events.push(['select',id]);scene.handlers.selectLabel=id=>events.push(['label',id]);
+  const modelEvent={button:0,pointerId:1,clientX:300,clientY:300},labelEvent={...modelEvent,clientX:200,clientY:200};
+  listeners.pointermove(modelEvent);scene.updateHoverVisual();assert.equal(scene.hovered,null);assert.equal(scene.hoverBox.visible,false);assert.equal(scene.renderer.domElement.title,'');
+  for(const altKey of [false,true]){listeners.pointerdown({...modelEvent,altKey});listeners.pointerup(modelEvent);assert.deepEqual(events.pop(),['select',null]);}
+  listeners.pointermove(labelEvent);scene.updateHoverVisual();assert.equal(scene.hovered,floor.id);assert.equal(scene.hoverBox.visible,true);
+  listeners.pointerdown(labelEvent);listeners.pointerup(labelEvent);assert.deepEqual(events.pop(),['label',floor.id]);
+  listeners.pointermove(modelEvent);scene.updateHoverVisual();assert.equal(scene.hoverBox.visible,false);
+  scene.state.equipment.push({...floor,id:'equipment'});hits.push({object:{userData:{equipmentId:'equipment'}}});
+  assert.equal(scene.pick(modelEvent),'equipment');
+  scene.state.floors=[];floor.floorSelector=true;assert.equal(scene.pick(modelEvent),'equipment');
+});
+
+test('건물 투명 표시는 공유 GLB 재질과 그림자 원본을 보존하고 복원한다',()=>{
+  const {scene}=fixture('3d'),material=new T.MeshStandardMaterial(),mesh=new T.Mesh(new T.BoxGeometry(),material);mesh.castShadow=true;
+  scene.styleSpatial(mesh,{backdrop:true,buildingShell:true});assert.notEqual(mesh.material,material);assert.equal(material.opacity,1);assert.equal(mesh.material.opacity,.08);assert.equal(mesh.material.depthWrite,false);assert.equal(mesh.castShadow,false);
+  scene.styleSpatial(mesh,null);assert.equal(mesh.material,material);assert.equal(mesh.castShadow,true);material.dispose();mesh.geometry.dispose();
+});
+test('평면도의 겹친 층 이름표는 분리되고 이름 숨김 상태에서도 층 진입이 가능하다',()=>{
+  const {scene}=fixture('plan');scene.showLabels=false;scene.labels=new Map();scene.state.equipment=[];scene.models=new Map();
+  for(let i=0;i<4;i++){const id='floor'+i,model=new T.Object3D();model.position.y=i*3;scene.models.set(id,model);scene.state.equipment.push({id,name:(i+1)+'F',x:0,z:0,y:i*3,width:20,depth:16,height:.2,rotation:0,floorSelector:true});
+    const label={hidden:false,textContent:'',style:{},getBoundingClientRect(){return {left:parseFloat(this.style.left)-20,right:parseFloat(this.style.left)+20,top:parseFloat(this.style.top)-24,bottom:parseFloat(this.style.top)};}};scene.labels.set(id,label);}
+  scene.updateLabels();const labels=[...scene.labels.values()],tops=labels.map(l=>parseFloat(l.style.top)).sort((a,b)=>a-b);
+  for(let i=1;i<tops.length;i++)assert.ok(tops[i]-tops[i-1]>=28);
+  for(const [id,label] of scene.labels){assert.equal(label.hidden,false);const r=label.getBoundingClientRect();assert.equal(scene.pickLabel({clientX:(r.left+r.right)/2,clientY:(r.top+r.bottom)/2}),id);}
+});

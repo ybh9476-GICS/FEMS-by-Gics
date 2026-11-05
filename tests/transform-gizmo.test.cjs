@@ -173,3 +173,15 @@ test('기즈모 취소·포인터 취소·캡처 유실은 시작 위치를 복�
     assert.deepEqual(h.current,before);assert.equal(h.past.length,0);assert.equal(scene.drag,null);
   }
 });
+
+test('외부 경로 기즈모는 XYZ 축으로 움직이고 평면도에서 숨긴 Y축은 선택하지 않는다',()=>{
+ const {camera,rayAt}=setup(),labels={ownerDocument:{createElement:()=>({style:{},dataset:{}})},appendChild(){}};
+ const gizmo=new context.FEMSTransformGizmo(new T.Scene(),labels,null,{vertical:true}),point={x:2,y:8,z:3};gizmo.update(point,point,camera,700,true);
+ for(const axis of ['x','y','z']){
+  const handle=gizmo.axes.get(axis).direction.clone().multiplyScalar(.75).applyMatrix4(gizmo.group.matrixWorld),ray=rayAt(handle);
+  assert.equal(gizmo.pick(ray),axis);const drag=gizmo.begin(axis,ray.ray,camera,point),target=handle.clone();target[axis]+=2;
+  const result=gizmo.positionForPoint(drag,rayAt(target).ray);assert.equal(result[axis],point[axis]+2);
+  for(const other of ['x','y','z'].filter(k=>k!==axis))assert.equal(result[other],point[other]);
+ }
+ gizmo.axes.get('y').arrow.visible=false;gizmo.updateLabels(camera,900,700);assert.equal(gizmo.axes.get('y').label.hidden,true);
+});

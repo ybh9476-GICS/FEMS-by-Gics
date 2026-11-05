@@ -6,33 +6,38 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="theme-color" content="#183b38">
   <title>FEMS by Gics</title>
-  <link rel="stylesheet" href="css/app.css?v=606a889bd94b8a3d">
-  <link rel="stylesheet" href="css/number-scrub.css?v=606a889bd94b8a3d">
-  <link rel="stylesheet" href="css/equipment-layout.css?v=606a889bd94b8a3d">
-  <link rel="stylesheet" href="css/connections.css?v=606a889bd94b8a3d">
-  <link rel="stylesheet" href="css/panel-resize.css?v=606a889bd94b8a3d">
-  <script defer src="vendor/three.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/asset-format.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/catalog.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/connections.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/shared-connections.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/model.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/default-layout.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/defaults.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/project-file.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/files.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/equipment-3d.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/assets.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/asset-library.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/equipment-thumbnails.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/equipment-tree.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/transform-gizmo.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/connection-view.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/scene.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/number-scrub.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/connection-editor.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/panel-resize.js?v=606a889bd94b8a3d"></script>
-  <script defer src="js/startup.js?v=606a889bd94b8a3d"></script>
+  <link rel="stylesheet" href="css/app.css?v=3e8d928acd7c8ea9">
+  <link rel="stylesheet" href="css/number-scrub.css?v=3e8d928acd7c8ea9">
+  <link rel="stylesheet" href="css/equipment-layout.css?v=3e8d928acd7c8ea9">
+  <link rel="stylesheet" href="css/connections.css?v=3e8d928acd7c8ea9">
+  <link rel="stylesheet" href="css/panel-resize.css?v=3e8d928acd7c8ea9">
+  <script defer src="vendor/three.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/asset-format.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/catalog.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/connections.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/optimal-routing.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/shared-connections.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/spatial.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/external-connections.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/model.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/default-layout.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/defaults.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/project-file.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/files.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/equipment-3d.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/assets.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/asset-library.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/equipment-thumbnails.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/equipment-tree.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/transform-gizmo.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/connection-view.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/scene.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/number-scrub.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/connection-editor.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/panel-resize.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/power-picker.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/spatial-ui.js?v=3e8d928acd7c8ea9"></script>
+  <script defer src="js/startup.js?v=3e8d928acd7c8ea9"></script>
 </head>
 <body>
   <header class="topbar">
@@ -63,28 +68,28 @@
         <div id="scene" aria-label="3D 설비 배치도"></div>
         <div id="labels" class="labels" aria-hidden="true"></div>
         <button id="gizmo-rotate" class="gizmo-rotate" type="button" aria-label="선택 설비 90° 회전" title="선택 설비를 90° 회전" hidden>↻ 90°</button>
-        <div class="scene-heading"><p>바닥 <span>·</span> <span id="site-size">60 × 40 m</span></p><button id="site-edit" type="button" aria-label="바닥 크기 변경">변경</button></div>
+        <div class="scene-heading"><p>대지 <span>·</span> <span id="site-size">60 × 40 m</span></p><button id="site-edit" type="button" aria-label="대지 크기 변경">변경</button></div>
         <div id="empty-state" class="empty-state" hidden><strong>첫 번째 설비를 배치해 보세요</strong><span>하단 썸네일에서 설비를 선택하세요.</span></div>
         <div class="scene-controls"><div><button id="zoom-out" aria-label="축소">−</button><button id="zoom-in" aria-label="확대">+</button></div></div>
         <div id="graphics-error" class="graphics-error" role="alert" hidden></div>
       </div>
       <section class="equipment-dock" aria-label="설비 라이브러리">
-        <div class="asset-library-bar"><div role="group" aria-label="설비 종류"><button id="catalog-builtin" type="button" aria-pressed="true">기본 설비</button><button id="catalog-custom" type="button" aria-pressed="false">추가 설비</button></div><button id="asset-open" type="button">＋ 에셋 등록</button></div>
+        <div class="asset-library-bar"><div role="group" aria-label="설비 종류"><button id="catalog-builtin" type="button" aria-pressed="true">기본 설비</button><button id="catalog-custom" type="button" aria-pressed="false">추가 설비</button><button id="catalog-building" type="button" aria-pressed="false">건물</button><button id="catalog-floor" type="button" aria-pressed="false">층</button></div><button id="asset-open" type="button">＋ 에셋 등록</button></div>
         <div id="catalog" class="thumbnail-strip" aria-label="배치할 설비"></div><p id="asset-library-status" role="status" hidden></p>
       </section>
       <footer class="statusbar"><span><span class="small-dot"></span> <span id="save-status">로컬 작업 공간</span></span><span id="overlap-status"></span><span><strong id="equipment-count">0</strong>개 설비 <i>·</i> <span id="grid-size">1 m 그리드</span></span></footer>
     </section>
     <aside class="inspector" aria-labelledby="inspector-title">
       <div class="panel-heading"><h2 id="inspector-title" class="panel-title">PROPERTIES</h2></div>
-      <div id="inspector-empty" class="inspector-empty"><span>◇</span><h3>설비를 선택하세요</h3><p>화면이나 좌측 목록에서 선택하면<br>위치와 크기를 편집할 수 있습니다.</p><div class="workflow"><b>01 <span>하단 썸네일에서 설비 선택</span></b><b>02 <span>바닥을 클릭하여 배치</span></b><b>03 <span>좌측 목록에서 계층 연결</span></b></div></div>
+      <div id="inspector-empty" class="inspector-empty"><span>◇</span><h3>설비를 선택하세요</h3><p>화면이나 좌측 목록에서 선택하면<br>위치와 크기를 편집할 수 있습니다.</p><div class="workflow"><b>01 <span>하단 썸네일에서 설비 선택</span></b><b>02 <span>대지를 클릭하여 배치</span></b><b>03 <span>좌측 목록에서 계층 연결</span></b></div></div>
       <section id="connection-properties" class="property-sections" hidden aria-label="연결선 속성">
         <div class="property-section"><p id="connection-scope" class="live-edit-note"></p><p id="connection-title" class="description"></p></div>
         <fieldset><legend>지름 <span>m</span></legend><input id="connection-diameter" aria-label="지름 (m)" type="number" min="0.02" max="2" step="0.01" value="0.2"></fieldset>
         <fieldset><legend>선택 선분 색상</legend><div id="connection-palette" aria-label="선택 선분 색상"></div></fieldset>
         <div class="property-section">
           <p id="connection-selection" class="live-edit-note"></p>
-          <div id="connection-point-fields" class="field-row" hidden><label>X (m)<input id="connection-x" type="number" step="0.01"></label><label>Z (m)<input id="connection-z" type="number" step="0.01"></label></div>
-          <div class="connection-actions"><button id="connection-corner" type="button" aria-pressed="false">코너 추가</button><button id="connection-add" type="button">선분에 포인트 추가</button><button id="connection-delete" type="button">선택 포인트 삭제</button><button id="connection-optimize" type="button">포인트 최적화</button><button id="connection-reset" type="button">최단 경로 복원</button></div>
+          <div id="connection-point-fields" class="field-row" hidden><label>X (m)<input id="connection-x" type="number" step="0.01"></label><label>Z (m)<input id="connection-z" type="number" step="0.01"></label><label id="connection-y-field" hidden>Y 높이 (m)<input id="connection-y" type="number" step="0.01"></label></div>
+          <div class="connection-actions"><button id="connection-corner" type="button" aria-pressed="false">코너 추가</button><button id="connection-add" type="button">선분에 포인트 추가</button><button id="connection-delete" type="button">선택 포인트 삭제</button><button id="connection-optimize" type="button">포인트 최적화</button><button id="connection-reset" type="button">최적 경로로 정리</button></div>
           <p id="connection-feedback" class="live-edit-note" role="status"></p>
           <p id="connection-edit-hint" class="live-edit-note"></p>
           <p id="connection-error" class="error-message" role="alert"></p>
@@ -126,8 +131,8 @@
   </main>
   <dialog id="site-dialog" aria-labelledby="site-title" aria-describedby="site-help">
     <form id="site-form">
-      <h2 id="site-title">바닥 크기 변경</h2>
-      <p id="site-help">바닥 중심과 설비 위치는 유지됩니다.</p>
+      <h2 id="site-title">대지 크기 변경</h2>
+      <p id="site-help">대지 중심과 설비 위치는 유지됩니다.</p>
       <div class="field-row"><label>가로 (m)<input id="site-width" name="width" type="number" min="0.1" max="100000" step="any" required></label><label>세로 (m)<input id="site-depth" name="depth" type="number" min="0.1" max="100000" step="any" required></label></div>
       <p id="site-error" class="error-message" role="alert"></p>
       <div class="dialog-actions"><button id="site-cancel" type="button">취소</button><button type="submit" class="primary">적용</button></div>
@@ -144,6 +149,7 @@
     <form id="asset-form">
       <h2 id="asset-title">에셋 등록</h2>
       <p class="asset-help">텍스처가 포함된 GLB · 최대 25 MB</p>
+      <label>에셋 종류<select id="asset-kind"><option value="equipment">추가 설비</option><option value="building">건물</option><option value="floor">층</option></select></label>
       <label>모델 파일<input id="asset-file" type="file" accept=".glb" required></label>
       <div class="asset-preview"><img id="asset-preview" alt="등록할 설비 미리보기" hidden><span id="asset-preview-note">GLB 파일을 선택하세요.</span></div>
       <div class="field-row"><label>이름<input id="asset-name" maxlength="60" required></label><label>영문명 (선택)<input id="asset-en" maxlength="80"></label></div>
@@ -168,19 +174,21 @@
     <p id="default-error" class="error-message" role="alert"></p>
     <button id="default-backup-save" type="button" hidden>기본값 갱신 전 작업 백업 저장</button>
     <p><a id="branch-backup" download="공유분기-변환전-백업.fems" hidden>공유 분기점 변환 전 도면 백업 내려받기</a></p>
+    <p><button id="spatial-backup-save" type="button" hidden>건물·층 구조 변경 전 백업 저장</button></p>
     <div class="dialog-actions"><button id="default-close" type="button" autofocus>취소</button><button id="default-overwrite" class="primary" type="button">덮어쓰기</button></div>
   </dialog>
   <dialog id="connection-reset-dialog" aria-labelledby="connection-reset-title" aria-describedby="connection-reset-description">
     <form method="dialog">
-      <h2 id="connection-reset-title">최단 경로로 복원할까요?</h2>
+      <h2 id="connection-reset-title">최적 경로로 정리할까요?</h2>
+      <p id="connection-reset-external-description" hidden>선택한 외부 연결선의 경로를 다시 만듭니다.<br>편집한 포인트와 선분 색상이 초기화됩니다.<br>실행 취소로 복원할 수 있습니다.</p>
       <p id="connection-reset-target" class="live-edit-note"></p>
       <ul id="connection-reset-description" class="dialog-message">
-        <li>선택한 연결망 전체를 최단 직각 경로로 복원합니다.</li>
-        <li>분기점·설비 접속점·색상·지름은 유지됩니다.</li>
-        <li>다른 연결망은 변경하지 않습니다.</li>
+        <li>현재 공간의 연결선을 설비와 주변 선을 피해 직각 경로로 정리합니다.</li>
+        <li>수동 경로와 분기점 위치가 다시 계산됩니다. 전력 연결 관계와 설비 배치는 유지됩니다.</li>
+        <li>색상·지름은 새 경로에 옮기며, 다른 출발 설비의 연결망은 변경하지 않습니다.</li>
         <li>실행 취소로 복구할 수 있습니다.</li>
       </ul>
-      <div class="dialog-actions"><button value="cancel" autofocus>취소</button><button value="restore" class="primary">복원</button></div>
+      <div class="dialog-actions"><button value="cancel" autofocus>취소</button><button value="restore" class="primary">정리</button></div>
     </form>
   </dialog>
   <dialog id="connection-optimize-dialog" aria-labelledby="connection-optimize-title" aria-describedby="connection-optimize-description">

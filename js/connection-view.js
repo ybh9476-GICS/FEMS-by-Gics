@@ -2,6 +2,54 @@
   'use strict';
   const T=root.THREE,L=root.FEMSConnections;
   class ConnectionView {
+    static externalFloorRoutes(state){
+      if(!state.scopeFloorId||state.hideConnections)return [];
+      const source=state.connectionSource||state,items=new Map(source.equipment.map(e=>[e.id,e])),edges=L.routes(source),used=[],routes=[];
+      const half={x:state.site.width/2,z:state.site.depth/2},clamp=(v,h)=>Math.max(-h,Math.min(h,v));
+      const spacing=Math.min(2,Math.min(state.site.width,state.site.depth)/(L.powerLinks(source).length+1));
+      for(const link of L.powerLinks(source).slice().sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)))){
+        const parent=items.get(link.from),child=items.get(link.to);
+        if(!parent||!child||(parent.floorId||null)===(child.floorId||null))continue;
+        const local=[parent,child].find(e=>e.floorId===state.scopeFloorId);if(!local)continue;
+        const other=local===parent?child:parent,edge=edges.find(l=>l.parentId===parent.id&&(l.childIds||[l.id]).includes(child.id)),style=edge||L.style(child),candidates=[];
+        for(const axis of ['x','z'])for(const sign of [-1,1]){
+          const across=axis==='x'?'z':'x',base=clamp(local[across],half[across]),side=axis+sign;
+          for(let n=0;n<=used.length;n++)for(const direction of n?[-1,1]:[1]){
+            const lane=clamp(base+n*spacing*direction,half[across]);
+            if(used.some(p=>p.side===side&&Math.abs(p.lane-lane)<spacing*.95))continue;
+            const end={[axis]:sign*(half[axis]+3),[across]:lane};
+            candidates.push({axis,side,lane,end,cost:Math.abs(end[axis]-local[axis])+Math.abs(lane-local[across])+used.filter(p=>p.side===side).length*Math.max(state.site.width,state.site.depth)*2});
+          }
+        }
+        candidates.sort((a,b)=>a.cost-b.cost);const chosen=candidates[0];if(!chosen)continue;used.push(chosen);
+        const {axis,end}=chosen,start={x:local.x,z:local.z},lead={...start,[axis]:end[axis]};
+        const points=[start,lead,end].filter((p,i,a)=>!i||Math.hypot(p.x-a[i-1].x,p.z-a[i-1].z)>1e-6);
+        if(local!==parent)points.reverse();
+        const floor=source.floors?.find(f=>f.id===other.floorId),building=source.buildings?.find(b=>b.id===floor?.buildingId);
+        const path=[building?.name,floor?.name||'대지',other.name].filter(Boolean).join(' › ');
+        routes.push({id:'portal:'+JSON.stringify([parent.id,child.id]),parentId:parent.id,childIds:[child.id],rootId:L.rootEquipmentId(source,parent.id),points,segmentColors:points.slice(1).map(()=>style.color),diameter:style.diameter,color:style.color,elevation:state.connectionSurfaceY||0,readOnly:true,externalFloor:true,portal:{targetId:other.id,name:other.name,path,point:end}});
+      }
+      return routes;
+    }
+    static crossingGaps(routes){
+      const gaps=new Map(),segments=[];
+      for(let r=0;r<routes.length;r++){const line=routes[r];if(line.crossSpace)continue;
+        for(let i=0;i<line.points.length-1;i++){const a=line.points[i],b=line.points[i+1];if(Math.hypot(a.x-b.x,a.z-b.z)<1e-6)continue;segments.push({r,i,a,b,line,h:Math.abs(a.z-b.z)<1e-6});}}
+      for(let i=0;i<segments.length;i++)for(let j=i+1;j<segments.length;j++){
+        const a=segments[i],b=segments[j];if(a.h===b.h||Math.abs((a.line.elevation||0)-(b.line.elevation||0))>1e-4)continue;
+        const p=a.h?{x:b.a.x,z:a.a.z}:{x:a.a.x,z:b.a.z},axis=a.h?'x':'z',other=b.h?'x':'z';
+        const ta=(p[axis]-a.a[axis])/(a.b[axis]-a.a[axis]),tb=(p[other]-b.a[other])/(b.b[other]-b.a[other]);
+        if(ta<=1e-6||ta>=1-1e-6||tb<=1e-6||tb>=1-1e-6)continue;
+        const key=b.r+':'+b.i,half=(a.line.diameter/2+b.line.diameter/2+.15)/Math.hypot(b.b.x-b.a.x,b.b.z-b.a.z);
+        if(!gaps.has(key))gaps.set(key,[]);gaps.get(key).push([Math.max(0,tb-half),Math.min(1,tb+half)]);
+      }
+      return gaps;
+    }
+    static crossSpaceRoutes(state){
+      if(state.hideConnections||!state.connectionFrames||!state.focusBounds)return [];
+      const source=state.connectionSource||state,shown=new Set(state.equipment.map(e=>e.id));
+      return L.external.links(source).filter(l=>shown.has(l.from)&&shown.has(l.to)).map(l=>L.external.route(source,L.external.idFor(l.from,l.to)));
+    }
     constructor(scene){
       this.group=new T.Group();scene.add(this.group);this.lines=[];this.selection=null;this.mode='3d';
       this.time={value:0};this.pointGeometry=new T.SphereGeometry(1,12,8);
@@ -10,6 +58,7 @@
       this.selectedPointMaterial=new T.MeshBasicMaterial({color:'#f59e0b',depthTest:false});
       this.hoverPointMaterial=new T.MeshBasicMaterial({color:'#14b8a6',depthTest:false});
       this.pointBorderMaterial=new T.MeshBasicMaterial({color:'#2563eb',depthTest:false});
+      this.junctionMaterial=new T.MeshBasicMaterial({color:'#365b54'});
       this.segmentGeometry=new T.CylinderGeometry(1,1,1,12);
       this.emphasis=new T.Group();scene.add(this.emphasis);
       const overlay=color=>{
@@ -34,10 +83,23 @@
       this.segmentHandle.visible=false;
     }
     setState(state){
-      const routes=L.routes(state).map(line=>({...line,rootId:L.rootEquipmentId(state,line.parentId)})),key=JSON.stringify(routes);
+      const source=state.connectionSource||state;
+      const byId=new Map(source.equipment.map(e=>[e.id,e]));
+      const routes=L.routes(source).filter(line=>{
+        if(state.hideConnections)return false;
+        if(!state.visibleEquipment)return true;
+        const scope=byId.get(line.parentId)?.floorId||null;
+        return state.visibleEquipment.has(line.parentId)&&(line.childIds||[line.id]).some(id=>state.visibleEquipment.has(id)&&(byId.get(id)?.floorId||null)===scope);
+      }).map(line=>{
+        const frame=state.connectionFrames?.[byId.get(line.parentId)?.floorId];
+        const result={...line,rootId:L.rootEquipmentId(source,line.parentId),elevation:state.connectionSurfaceY||0};
+        if(frame){const a=frame.rotation*Math.PI/180,c=Math.cos(a),s=Math.sin(a);result.points=line.points.map(p=>({x:frame.x+c*p.x+s*p.z,z:frame.z-s*p.x+c*p.z}));result.elevation=frame.elevation;result.readOnly=true;}
+        return result;
+      }).concat(ConnectionView.crossSpaceRoutes(state),ConnectionView.externalFloorRoutes(state)),key=JSON.stringify(routes);
       if(key===this.key)return;
       this.key=key;this.clear();
-      for(const route of routes){
+      const crossingGaps=ConnectionView.crossingGaps(routes),junctions=new Set();
+      for(const [routeIndex,route] of routes.entries()){
         const material=new T.ShaderMaterial({toneMapped:false,uniforms:{time:this.time,color:{value:new T.Color(route.color)}},
           vertexShader:`
             attribute float flowDistance;
@@ -58,24 +120,33 @@
               #include <colorspace_fragment>
             }`
         });
-        const line={...route,material,segments:[],handles:[],height:.08+route.diameter/2};let distance=route.distanceOffset||0;
+        const line={...route,material,segments:[],handles:[],height:route.elevation+.08+route.diameter/2};let distance=route.distanceOffset||0;
         for(let i=0;i<route.points.length-1;i++){
-          const a=route.points[i],b=route.points[i+1],length=Math.hypot(b.x-a.x,b.z-a.z);if(length<1e-6)continue;
-          const geometry=new T.CylinderGeometry(route.diameter/2,route.diameter/2,length,10,1,false);
+          const a=route.points[i],b=route.points[i+1],ay=a.y??line.height,by=b.y??line.height,length=Math.hypot(b.x-a.x,by-ay,b.z-a.z);if(length<1e-6)continue;
+          const cuts=(crossingGaps.get(routeIndex+':'+i)||[]).sort((a,b)=>a[0]-b[0]),pieces=[];let cursor=0;
+          for(const [low,high] of cuts){if(low>cursor)pieces.push([cursor,low]);cursor=Math.max(cursor,high);}if(cursor<1)pieces.push([cursor,1]);
+          for(const [low,high] of pieces){
+          const partLength=length*(high-low),middle=(low+high)/2;
+          const geometry=new T.CylinderGeometry(route.diameter/2,route.diameter/2,partLength,10,1,false);
           const positions=geometry.attributes.position,flow=new Float32Array(positions.count);
-          for(let j=0;j<positions.count;j++)flow[j]=distance+positions.getY(j)+length/2;
+          for(let j=0;j<positions.count;j++)flow[j]=distance+length*low+positions.getY(j)+partLength/2;
           geometry.setAttribute('flowDistance',new T.BufferAttribute(flow,1));
           const segmentMaterial=material.clone();segmentMaterial.uniforms.time=this.time;
           segmentMaterial.uniforms.color.value.set(route.segmentColors[i]);
-          const mesh=new T.Mesh(geometry,segmentMaterial);mesh.position.set((a.x+b.x)/2,line.height,(a.z+b.z)/2);
+          const mesh=new T.Mesh(geometry,segmentMaterial);mesh.position.set(a.x+(b.x-a.x)*middle,ay+(by-ay)*middle,a.z+(b.z-a.z)*middle);
           mesh.userData.segmentIndex=i;
-          mesh.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),new T.Vector3(b.x-a.x,0,b.z-a.z).normalize());
-          this.group.add(mesh);line.segments.push(mesh);distance+=length;
+          mesh.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),new T.Vector3(b.x-a.x,by-ay,b.z-a.z).normalize());
+          this.group.add(mesh);line.segments.push(mesh);
+          }distance+=length;
         }
         for(let i=0;i<route.points.length;i++){
           const p=route.points[i],border=new T.Mesh(this.pointGeometry,this.pointBorderMaterial),dot=new T.Mesh(this.pointGeometry,this.pointMaterial);
-          border.position.set(p.x,line.height+.02,p.z);dot.position.copy(border.position);border.renderOrder=10;dot.renderOrder=11;
+          border.position.set(p.x,(p.y??line.height)+.02,p.z);dot.position.copy(border.position);border.renderOrder=10;dot.renderOrder=11;
           this.group.add(border,dot);line.handles.push({border,dot});
+          const nodeId=route.nodeIds?.[i];
+          if(route.pointKinds?.[i]==='junction'&&nodeId&&!junctions.has(nodeId)){
+            junctions.add(nodeId);const marker=new T.Mesh(this.pointGeometry,this.junctionMaterial);marker.position.copy(border.position);marker.scale.setScalar(route.diameter*.8);this.group.add(marker);
+          }
         }
         this.lines.push(line);
       }
@@ -89,9 +160,9 @@
       this.updateSegmentOverlay(this.selectedSegment,selecting?selection:null,hitPixel(selection),true);
       const selectedLine=this.lines.find(line=>line.id===selection?.id),a=selectedLine?.points[selection?.index],b=selectedLine?.points[selection?.index+1];
       const handlePixel=hitPixel(selection);
-      this.segmentHandle.visible=!!(editing&&selection?.kind==='segment'&&a&&b&&Math.hypot(b.x-a.x,b.z-a.z)>handlePixel*24);
+      this.segmentHandle.visible=!!(editing&&!selectedLine?.readOnly&&selection?.kind==='segment'&&a&&b&&Math.hypot(b.x-a.x,(b.y??selectedLine.height)-(a.y??selectedLine.height),b.z-a.z)>handlePixel*24);
       if(this.segmentHandle.visible){
-        this.segmentHandle.position.set((a.x+b.x)/2,selectedLine.height+.04,(a.z+b.z)/2);
+        this.segmentHandle.position.set((a.x+b.x)/2,((a.y??selectedLine.height)+(b.y??selectedLine.height))/2+.04,(a.z+b.z)/2);
         this.segmentHandle.children[0].scale.setScalar(handlePixel*12);this.segmentHandle.children[1].scale.setScalar(handlePixel*8);
         // Keep the square facing the camera so it remains usable at shallow angles.
         this.segmentHandle.quaternion.copy(camera.quaternion).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),Math.PI/2));
@@ -106,7 +177,7 @@
       this.updateSegmentOverlay(this.hoverSegment,selecting&&!sameSegment?hover:null,hitPixel(hover),false);
       const drawnNodes=new Set(),selectedNode=selection?.kind==='point'?selectedLine?.nodeIds?.[selection.index]:null;
       for(const line of this.lines){
-        const active=editing&&!!selectedLine&&line.rootId===selectedLine.rootId;
+        const active=editing&&!line.readOnly&&!!selectedLine&&line.rootId===selectedLine.rootId;
         for(const mesh of line.segments)mesh.renderOrder=selecting&&((selection?.kind==='segment'&&selection.id===line.id&&selection.index===mesh.userData.segmentIndex)||(hover?.kind==='segment'&&hover.id===line.id&&hover.index===mesh.userData.segmentIndex))?8:0;
         line.handles.forEach(({border,dot},index)=>{
           const nodeId=line.nodeIds?.[index],duplicate=nodeId&&drawnNodes.has(nodeId);if(active&&nodeId)drawnNodes.add(nodeId);
@@ -125,10 +196,11 @@
       const line=hit?.kind==='segment'?this.lines.find(line=>line.id===hit.id):null;
       const segment=line?.segments.find(mesh=>mesh.userData.segmentIndex===hit.index);
       overlay.visible=!!segment;if(!segment)return;
-      overlay.position.copy(segment.position);overlay.quaternion.copy(segment.quaternion);
+      const a=line.points[hit.index],b=line.points[hit.index+1],ay=a.y??line.height,by=b.y??line.height,length=Math.hypot(b.x-a.x,by-ay,b.z-a.z);
+      overlay.position.set((a.x+b.x)/2,(ay+by)/2,(a.z+b.z)/2);overlay.quaternion.copy(segment.quaternion);
       const radius=Math.max(line.diameter/2,perPixel*1.5),extra=selected?3:1.5;
-      overlay.children[0].scale.set(radius+perPixel*(extra+1.5),segment.geometry.parameters.height,radius+perPixel*(extra+1.5));
-      overlay.children[1].scale.set(radius+perPixel*extra,segment.geometry.parameters.height,radius+perPixel*extra);
+      overlay.children[0].scale.set(radius+perPixel*(extra+1.5),length,radius+perPixel*(extra+1.5));
+      overlay.children[1].scale.set(radius+perPixel*extra,length,radius+perPixel*extra);
     }
     pixelSize(camera,height,position){
       if(camera.isOrthographicCamera)return (camera.top-camera.bottom)/camera.zoom/height;
@@ -138,14 +210,14 @@
     project(p,line,camera,rect){const v=new T.Vector3(p.x,p.y??line.height,p.z).project(camera);return {x:rect.left+(v.x+1)*rect.width/2,y:rect.top+(1-v.y)*rect.height/2,depth:v.z};}
     pickHandle(event,camera,rect){
       if(!this.segmentHandle.visible||this.selection?.kind!=='segment')return null;
-      const line=this.lines.find(line=>line.id===this.selection.id);if(!line)return null;
+      const line=this.lines.find(line=>line.id===this.selection.id);if(!line||line.readOnly)return null;
       const p=this.project(this.segmentHandle.position,line,camera,rect);if(p.depth< -1||p.depth>1)return null;
       return Math.abs(event.clientX-p.x)<=7&&Math.abs(event.clientY-p.y)<=7?{...this.selection,handle:true}:null;
     }
     pick(event,camera,rect,{pointsOnly=false,movableOnly=false}={}){
       if(this.mode!=='plan'&&this.mode!=='3d')return null;
       // Points take precedence. Prefer the selected connection at shared junctions.
-      const ordered=[...this.lines].sort((a,b)=>(b.id===this.selection?.id)-(a.id===this.selection?.id));
+      const ordered=this.lines.filter(line=>!line.readOnly).sort((a,b)=>(b.id===this.selection?.id)-(a.id===this.selection?.id));
       let best=null,nearest=6;
       for(const line of ordered)for(let i=0;i<line.points.length;i++){
         if(!line.handles[i].border.visible)continue;
@@ -160,7 +232,7 @@
         const a=this.project(line.points[i],line,camera,rect),b=this.project(line.points[i+1],line,camera,rect);
         if(this.mode==='3d'&&(a.depth< -1||a.depth>1||b.depth< -1||b.depth>1))continue;
         const dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,((event.clientX-a.x)*dx+(event.clientY-a.y)*dy)/(dx*dx+dy*dy||1)));
-        const midpoint=new T.Vector3((line.points[i].x+line.points[i+1].x)/2,line.height,(line.points[i].z+line.points[i+1].z)/2);
+        const midpoint=new T.Vector3((line.points[i].x+line.points[i+1].x)/2,((line.points[i].y??line.height)+(line.points[i+1].y??line.height))/2,(line.points[i].z+line.points[i+1].z)/2);
         const distance=Math.hypot(event.clientX-a.x-t*dx,event.clientY-a.y-t*dy),tolerance=Math.max(7,line.diameter/this.pixelSize(camera,rect.height,midpoint)/2);
         if(distance<tolerance&&distance<nearest){nearest=distance;best={id:line.id,kind:'segment',index:i};}
       }

@@ -3,7 +3,7 @@ const M=require('../js/model.js'),P=require('../js/project-file.js'),C=require('
 const source=fs.readFileSync(require('node:path').join(__dirname,'../js/app.js'),'utf8');
 function fixture(){
   const nodes=new Map(),storage=new Map(),history=new M.History(P.attach(M.demo(),[],'new','a'.repeat(64)));
-  const ctx={M,P,C,crypto,history,defaultRevision:'a'.repeat(64),defaultBackupKey:'backup',bundled:P.attach(M.empty(),[],'new','a'.repeat(64)),autosaveAllowed:true,
+  const ctx={M,P,C,crypto,history,spaces:null,defaultRevision:'a'.repeat(64),defaultBackupKey:'backup',bundled:P.attach(M.empty(),[],'new','a'.repeat(64)),autosaveAllowed:true,
     window:{FEMSFiles:F,FEMSAssets:{readBytes:async()=>{},importBlobs:async()=>{}},showSaveFilePicker:async()=>({createWritable:async()=>({write:async()=>{},close:async()=>{}})})},
     localStorage:{getItem:key=>storage.get(key),setItem:(key,value)=>storage.set(key,value)},
     $:id=>{if(!nodes.has(id))nodes.set(id,{handlers:{},value:'',addEventListener(type,fn){this.handlers[type]=fn;},close(){this.open=false;},showModal(){this.open=true;},click(){}});return nodes.get(id);},

@@ -13,3 +13,5 @@
 .history-tools #fit:after{content:none}
 .history-tools .icon-button{width:32px;height:28px;min-width:32px;padding:6px 8px}
 .history-tools .icon-button svg{width:16px;height:16px}
+
+.external-label{pointer-events:auto;cursor:pointer;font:inherit;font-size:9px;padding:4px 7px;color:#316c5c}.external-label:hover,.external-label:focus-visible{border-color:#61a28d;background:#f1fff7}.external-label:disabled{pointer-events:none}

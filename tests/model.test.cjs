@@ -11,7 +11,7 @@ test('9종 예시 도면이 겹침 없이 유효하고 저장·복원된다',()=
 });
 test('새 설비는 빈 코드와 고유 ID를 가지며 부지 경계를 준수한다',()=>{
   const state=M.empty();for(const def of C.catalog)for(let i=0;i<3;i++)state.equipment.push(M.create(def.type,state,100,-100));
-  assert.equal(new Set(state.equipment.map(e=>e.id)).size,27);assert.ok(state.equipment.every(e=>e.code===''));M.validate(state);
+  assert.equal(new Set(state.equipment.map(e=>e.id)).size,C.catalog.length*3);assert.ok(state.equipment.every(e=>e.code===''));M.validate(state);
 });
 test('실행 취소·다시 실행은 생성·편집·삭제·새 도면을 복원한다',()=>{
   const h=new M.History(M.demo()),original=M.clone(h.current),next=M.clone(h.current);next.equipment[0].name='송전탑 수정';h.commit(next);h.commit(M.empty());
@@ -83,7 +83,7 @@ test('300개 배치 한도와 과대 파일의 설비 목록을 거부한다',()
   const state=M.empty();for(let i=0;i<300;i++)state.equipment.push(M.create('panel',state));M.validate(state);assert.throws(()=>M.create('panel',state),/300/);
   state.equipment.push({...state.equipment[0],id:'overflow',code:'overflow'});assert.throws(()=>M.validate(state),/300/);
 });
-test('9종 실제 3D 모델의 치수가 선언한 크기에 맞고 모든 정점이 유한하다',()=>{
+test('모든 기본 3D 모델의 치수가 선언한 크기에 맞고 모든 정점이 유한하다',()=>{
   const root=path.resolve(__dirname,'..'),context={console};context.window=context;vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(root,'vendor/three.js'),'utf8'),context);
   vm.runInContext(fs.readFileSync(path.join(root,'js/equipment-3d.js'),'utf8'),context);

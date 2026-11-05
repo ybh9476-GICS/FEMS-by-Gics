@@ -4,6 +4,7 @@
     constructor(host, search, handlers) {
       this.host=host;this.search=search;this.handlers=handlers;
       this.insertLine=host.ownerDocument.createElement('div');this.insertLine.className='tree-insert-line';this.insertLine.hidden=true;this.insertLine.setAttribute('aria-hidden','true');host.ownerDocument.body.append(this.insertLine);
+      this.dropHint=host.ownerDocument.createElement('div');this.dropHint.className='tree-drop-hint';this.dropHint.hidden=true;this.dropHint.setAttribute('role','status');host.ownerDocument.body.append(this.dropHint);
       this.collapsed=new Set();this.dragged=null;
       this.selectedIds=[];this.anchor=null;
       host.setAttribute('aria-multiselectable','true');
@@ -26,9 +27,10 @@
       this.focus(id);
     }
     clearDrag(){const pointer=this.pointer;this.pointer=null;this.dragged=null;this.draggedIds=null;this.clearTarget();this.host.querySelectorAll('.drag-source').forEach(e=>e.classList.remove('drag-source'));if(pointer?.row.hasPointerCapture(pointer.id))pointer.row.releasePointerCapture(pointer.id);}
-    clearTarget(){this.host.querySelectorAll('.drop-target,.drop-invalid').forEach(e=>e.classList.remove('drop-target','drop-invalid'));this.insertLine.hidden=true;}
+    clearTarget(){this.host.querySelectorAll('.drop-target,.drop-invalid').forEach(e=>e.classList.remove('drop-target','drop-invalid'));this.insertLine.hidden=true;if(this.dropHint)this.dropHint.hidden=true;}
     allowed(parentId,referenceId){
       if(!this.dragged)return false;
+      if(this.handlers?.dropInfo?.(this.draggedIds||[this.dragged],parentId)?.valid===false)return false;
       const moving=new Set(this.draggedIds||[this.dragged]);
       if(referenceId&&moving.has(referenceId))return false;
       const byId=new Map(this.state.equipment.map(e=>[e.id,e]));
@@ -55,6 +57,7 @@
       const valid=this.allowed(target.parentId,target.referenceId);
       if(target.line){const line=target.line;this.insertLine.hidden=false;this.insertLine.style.left=line.left+'px';this.insertLine.style.top=(line.y-1)+'px';this.insertLine.style.width=(line.right-line.left)+'px';this.insertLine.classList.toggle('invalid',!valid);}
       else target.element.classList.add(valid?'drop-target':'drop-invalid');
+      if(this.dropHint){const info=this.handlers.dropInfo?.(this.draggedIds||[this.dragged],target.parentId),rect=target.element.getBoundingClientRect();this.dropHint.textContent=valid?(info?.label||(target.parentId?'전력 계층 변경':'최상위로 이동')):info?.valid===false?info.label:'자기 자신이나 하위 항목으로 이동할 수 없습니다.';this.dropHint.hidden=false;this.dropHint.classList.toggle('invalid',!valid);this.dropHint.style.left=Math.max(8,rect.left)+'px';this.dropHint.style.top=Math.max(8,Math.min(rect.bottom+4,this.host.ownerDocument.documentElement.clientHeight-48))+'px';}
     }
     bindDrag(row,id){
       row.addEventListener('pointerdown',event=>{
@@ -75,11 +78,11 @@
       });
       row.addEventListener('pointerup',event=>{
         if(!this.pointer||event.pointerId!==this.pointer.id)return;
-        const dragged=this.dragged,ids=this.draggedIds,target=this.dropTarget(event),valid=target&&this.allowed(target.parentId,target.referenceId);
+        const dragged=this.dragged,ids=this.draggedIds,target=this.dropTarget(event),valid=target&&this.allowed(target.parentId,target.referenceId),info=target&&this.handlers.dropInfo?.(ids||[dragged],target.parentId);
         this.skipClick=!!dragged;this.clearDrag();
         if(!dragged||!target)return;
         if(valid){if(target.parentId)(this.searchQuery?this.searchCollapsed:this.collapsed).delete(target.parentId);this.handlers.reparent(ids.length>1?ids:dragged,target.parentId,target.referenceId,target.position);}
-        else this.handlers.error('자기 자신이나 하위 설비 안으로 이동할 수 없습니다.');
+        else this.handlers.error(info?.valid===false?info.label:'자기 자신이나 하위 설비 안으로 이동할 수 없습니다.');
       });
       row.addEventListener('pointercancel',()=>this.clearDrag());
       row.addEventListener('lostpointercapture',()=>{if(this.pointer)this.clearDrag();});

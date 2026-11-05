@@ -9,6 +9,8 @@
     { type: 'panel', name: '분전반', en: 'Distribution board', code: 'DB', group: '부하·보호', color: '#6a918e', width: 0.8, depth: 0.35, height: 1.4, description: '조명·콘센트 등 개별 회로로 전력을 분배합니다.' },
     { type: 'ups', name: 'UPS', en: 'Uninterruptible power supply', code: 'UPS', group: '부하·보호', color: '#7b76a2', width: 1.2, depth: 1, height: 1.8, description: '무정전 전원장치로, 정전 시 중요 설비에 전력을 공급합니다.' },
     { type: 'solar', name: '태양광 패널', en: 'Solar panel array', code: 'PV', group: '발전·저장', color: '#387fa9', width: 5, depth: 3, height: 1.8, description: '태양광을 이용해 전력을 생산하는 발전 설비입니다.' },
+    { type: 'solar-2x2', name: '태양광 패널 2×2', en: 'Solar panel array 2×2', code: 'PV', group: '발전·저장', color: '#387fa9', width: 10, depth: 6, height: 1.8, description: '기존 태양광 패널 4개를 가로 2개·세로 2개로 붙인 배열입니다. 하나의 설비로 배치·이동·크기 조절합니다.' },
+    { type: 'solar-3x3', name: '태양광 패널 3×3', en: 'Solar panel array 3×3', code: 'PV', group: '발전·저장', color: '#387fa9', width: 15, depth: 9, height: 1.8, description: '기존 태양광 패널 9개를 가로 3개·세로 3개로 붙인 배열입니다. 하나의 설비로 배치·이동·크기 조절합니다.' },
     { type: 'ess', name: 'ESS', en: 'Energy storage system', code: 'ESS', group: '발전·저장', color: '#39957e', width: 4, depth: 2, height: 2.6, description: '에너지 저장장치로, 전력을 저장하고 필요할 때 공급합니다.' }
   ].map(Object.freeze);
   const F=typeof module!=='undefined'&&module.exports?require('./asset-format.js'):root.FEMSAssetFormat;
@@ -18,7 +20,7 @@
     get catalog(){return [...catalog,...custom.values()];},
     register(entries){const valid=entries.map(F.metadata);for(const def of valid)custom.set(def.type,Object.freeze(def));},
     replace(entries){const valid=entries.map(F.metadata);custom.clear();for(const def of valid)custom.set(def.type,Object.freeze(def));},
-    get:type=>catalog.find(item=>item.type===type)||custom.get(type)||(F.isId(type)?{
+    get:type=>type==='space-floor'?{type,name:'층',en:'Floor',color:'#c4d4ce',width:20,depth:20,height:.2}:catalog.find(item=>item.type===type)||custom.get(type)||(F.isId(type)?{
       type,custom:true,missing:true,name:'에셋 없음',en:'Missing asset',code:'',color:'#b46d57',width:1,depth:1,height:1,
       description:'이 에셋의 등록 정보가 없습니다. 원래 assets/equipment 폴더를 복원하세요. 배치 정보는 유지됩니다.'
     }:undefined)

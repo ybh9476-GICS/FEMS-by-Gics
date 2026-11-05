@@ -63,7 +63,7 @@ function migrateBoot(saved,{failAt=null,previous=null}={}){
     getItem:key=>storage.get(key)||null,setItem(key,value){writes.push(key);if(key===failAt)throw new Error('quota');storage.set(key,value);}
   }};
   const app=fs.readFileSync(path.join(__dirname,'../js/app.js'),'utf8');
-  const end=app.indexOf('  let propertyEdit');assert.ok(end>0,'시작 시 도면 복원 코드의 끝을 찾아야 합니다.');
+  const end=app.indexOf('  if(autosaveAllowed&&history.current.version<4)');assert.ok(end>0,'시작 시 도면 복원 코드의 끝을 찾아야 합니다.');
   vm.runInNewContext(app.slice(0,end)+'window.result={state:history.current,autosaveAllowed,startupMessage,branchMigrationMessage};})();',context);
   return {...JSON.parse(JSON.stringify(context.window.result)),storage,writes,backupKey};
 }

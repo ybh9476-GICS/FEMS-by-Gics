@@ -42,7 +42,7 @@ test('공유 연결선은 일괄 이동 후 한 번 재구성하고 내부·무�
 test('실제 앱 계층 이동은 다중 선택을 유지하고 한 번 커밋하며 실패 시 선택을 복구한다',()=>{
   const {state,b,c,d,e}=fixture(),history=new M.History(state),source=fs.readFileSync('js/app.js','utf8');
   const start=source.indexOf('  function reparent('),end=source.indexOf('  function add(',start);assert.ok(start>=0&&end>start);
-  let commits=0;const context={M,history,selected:null,selectedIds:[b.id,c.id,e.id],groupFrame:{x:0},links:{clear(){}},finishPropertyEdit(){},render(){},toast:message=>assert.fail(message),commit(next){commits++;return history.commit(next);}};
+  let commits=0;const context={M,history,spaces:null,selected:null,selectedIds:[b.id,c.id,e.id],groupFrame:{x:0},links:{clear(){}},finishPropertyEdit(){},render(){},toast:message=>assert.fail(message),commit(next){commits++;return history.commit(next);}};
   vm.createContext(context);vm.runInContext(source.slice(start,end),context);context.ids=[b.id,c.id,e.id];context.target=d.id;
   vm.runInContext("reparent(ids,target,null,'inside')",context);assert.equal(commits,1);assert.deepEqual(Array.from(context.selectedIds),context.ids);assert.equal(context.selected,null);assert.equal(context.groupFrame,null);
   history.undo();assert.deepEqual(history.current,state);

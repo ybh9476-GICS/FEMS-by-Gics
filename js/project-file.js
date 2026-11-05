@@ -26,7 +26,7 @@
       entry.sha256=digest;
       if(!blobs.has(digest)){size+=bytes.length;if(size>MAX_BYTES-HEADER_LIMIT)throw new Error('추가 에셋 합계가 256 MB를 초과합니다.');blobs.set(digest,bytes);}
     }
-    for(const item of drawing.equipment)if(F.isId(item.type)&&!assets.some(a=>a.type===item.type))throw new Error(item.name+': 추가 에셋 원본이 없습니다. 원본 프로젝트에서 다시 저장하세요.');
+    for(const item of [...drawing.equipment,...drawing.buildings||[],...drawing.floors||[]])if(F.isId(item.type)&&!assets.some(a=>a.type===item.type))throw new Error(item.name+': 추가 에셋 원본이 없습니다. 원본 프로젝트에서 다시 저장하세요.');
     const header=new TextEncoder().encode(JSON.stringify({format:'gics-fems-project',version:1,drawing,blobs:[...blobs].map(([sha256,bytes])=>({sha256,size:bytes.length}))}));
     if(header.length>HEADER_LIMIT)throw new Error('도면 정보가 너무 큽니다.');
     const prefix=new Uint8Array(4);new DataView(prefix.buffer).setUint32(0,header.length,true);
@@ -54,7 +54,7 @@
     }
     const referenced=new Set(drawing.project.assets.map(a=>a.sha256));
     if(offset!==data.length||referenced.size!==blobs.size||[...referenced].some(key=>!blobs.has(key)))throw new Error('추가 에셋 파일이 누락되었거나 목록과 다릅니다.');
-    for(const item of drawing.equipment)if(F.isId(item.type)&&!drawing.project.assets.some(a=>a.type===item.type))throw new Error('설비의 추가 에셋 정보가 없습니다.');
+    for(const item of [...drawing.equipment,...drawing.buildings||[],...drawing.floors||[]])if(F.isId(item.type)&&!drawing.project.assets.some(a=>a.type===item.type))throw new Error('설비의 추가 에셋 정보가 없습니다.');
     return {drawing,blobs,legacy:false};
   }
   async function prepareDefault(state,readAsset,ensureLocal){
@@ -67,7 +67,7 @@
       if(local.sha256!==sha256)throw new Error('로컬 에셋 검증에 실패했습니다.');
       types.set(entry.type,local.type);drawing.project.assets[i]=local;
     }
-    for(const item of drawing.equipment)if(F.isId(item.type)){
+    for(const item of [...drawing.equipment,...drawing.buildings||[],...drawing.floors||[]])if(F.isId(item.type)){
       if(!types.has(item.type))throw new Error(item.name+': 에셋 원본이 없습니다.');item.type=types.get(item.type);
     }
     return M.validate(drawing);

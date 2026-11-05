@@ -37,6 +37,6 @@ async function verifyProject(root,state){
     const bytes=await fs.readFile(target);F.inspect(bytes);
     if(entry.sha256&&require('node:crypto').createHash('sha256').update(bytes).digest('hex')!==entry.sha256)throw new Error('에셋 원본이 다릅니다.');
   }
-  for(const item of state.equipment)if(F.isId(item.type)&&!state.project.assets.some(a=>a.type===item.type))throw new Error('배치된 설비의 에셋 원본이 없습니다.');
+  for(const item of [...state.equipment,...state.buildings||[],...state.floors||[]])if(F.isId(item.type)&&!state.project.assets.some(a=>a.type===item.type))throw new Error('배치된 설비의 에셋 원본이 없습니다.');
 }
 module.exports={store,verifyProject};
