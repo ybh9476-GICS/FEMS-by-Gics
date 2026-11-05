@@ -287,5 +287,5 @@
     };
     Object.assign(api,{enableShared:shared.enableShared,reconcileNetworks:shared.reconcile,validateNetworks:shared.validate,snapCandidates:shared.snapCandidates,optimalNetwork:shared.optimal});
   };
-  if(typeof module!=='undefined'&&module.exports){module.exports=api;api.installShared(require('./shared-connections.js'));require('./external-connections.js')(api);}else root.FEMSConnections=api;
+  if(typeof module!=='undefined'&&module.exports){module.exports=api;api.installShared(require('./shared-connections.js'));require('./external-connections.js')(api);require('./floor-connections.js')(api);}else root.FEMSConnections=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

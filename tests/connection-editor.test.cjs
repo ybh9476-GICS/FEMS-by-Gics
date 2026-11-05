@@ -128,3 +128,20 @@ test('외부 포인트 Y 수치 입력·드래그·취소·복원은 같은 선�
  const before=M.clone(history.current);editor.start(editor.selection);editor.preview({...L.route(before,id).points[editor.selection.index],y:6},{axis:'y'});editor.finish(false);assert.deepEqual(history.current,before);
  const dialog=elements.get('connection-reset-dialog');elements.get('connection-reset').listeners.click();assert.equal(elements.get('connection-reset-external-description').hidden,false);assert.equal(elements.get('connection-reset-description').hidden,true);dialog.returnValue='restore';dialog.listeners.close();assert.equal(editor.selection.id,id);assert.equal(editor.selection.index,0);assert.deepEqual(history.current,L.resetScope(before,id));
 });
+
+test('건물 외부 포인트는 보이는 다른 연결선에 스냅하고 축 제한·Shift 해제·실행 취소를 유지한다',()=>{
+ const S=require('../js/spatial.js');
+ for(const portal of [false,true]){
+  const {editor,history}=fixture();let state=S.upgrade(L.enableShared(M.empty()));
+  state.floors=[{id:'f',name:'층',x:0,z:0,rotation:0,width:20,depth:20,height:1,elevation:8}];
+  state.equipment=[{...M.create('panel',state,-20,0),id:'from'},{...M.create('panel',state,2,3),id:'to',floorId:'f'}];
+  state=L.changePowerLink(L.upgradePower(state),'from','to');history.commit(state);
+  const id=portal?L.floor.idFor('from','to','f'):L.external.idFor('from','to'),line=L.route(state,id),index=portal?line.pointKinds.indexOf('portal'):1,hit={id,kind:'point',index};
+  const target={x:4.127,z:6.283,y:line.points[index].y??0},near={...target,x:target.x+.13,z:target.z-.11},snapPoints=[target];
+  editor.select(hit);editor.start(hit);editor.preview(near,{tolerance:.3,snapPoints});
+  let p=L.route(history.current,id).points[editor.selection.index];assert.equal(p.x,target.x);assert.equal(p.z,target.z);
+  editor.finish(true);history.undo();assert.deepEqual(history.current,state);history.redo();assert.equal(L.route(history.current,id).points[editor.selection.index].x,target.x);
+  history.undo();editor.select(hit);editor.start(hit);editor.preview(near,{tolerance:0,snapPoints});p=L.route(history.current,id).points[editor.selection.index];assert.equal(p.x,4.26);assert.equal(p.z,6.17);editor.finish(false);assert.deepEqual(history.current,state);
+  if(!portal){editor.select(hit);editor.start(hit);editor.preview({...line.points[index],y:5.12},{axis:'y',tolerance:.3,snapPoints:[{x:99,y:5.234,z:99}]});p=L.route(history.current,id).points[editor.selection.index];assert.equal(p.y,5.234);assert.equal(p.x,line.points[index].x);assert.equal(p.z,line.points[index].z);editor.finish(false);}
+ }
+});

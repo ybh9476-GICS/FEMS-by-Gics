@@ -36,7 +36,7 @@
         if(!this.selection)return;
         this.finishNumeric(true);this.resetId=this.selection.id;
         const scope=L.editScope(this.api.state(),this.resetId);if(!scope)return;
-        const external=L.external.isExternal(this.resetId);
+        const external=(L.external.isExternal(this.resetId)||L.floor.isPortal(this.resetId));
         $('connection-reset-target').textContent=`대상: ${scope.name}${external?' (선택한 외부 연결선)':' 연결망 전체'}`;
         $('connection-reset-description').hidden=external;
         $('connection-reset-external-description').hidden=!external;
@@ -48,7 +48,7 @@
         const id=this.resetId;this.resetId=null;
         if(dialog.returnValue==='restore'&&this.selection?.id===id)this.apply(()=>{
           const state=this.api.state(),parentId=L.route(state,id).parentId,next=L.resetScope(state,id);
-          const replacement=L.external.isExternal(id)?L.route(next,id):L.routes(next).find(r=>r.parentId===parentId);this.selection={id:replacement?.id||id,kind:'segment',index:0};return next;
+          const replacement=(L.external.isExternal(id)||L.floor.isPortal(id))?L.route(next,id):L.routes(next).find(r=>r.parentId===parentId);this.selection={id:replacement?.id||id,kind:'segment',index:0};return next;
         });
       });
     }
@@ -107,21 +107,17 @@
         if(!isPoint&&!selection.handle)return;
         if(line.crossSpace){
           const rounded={...position},moving=options.axis==='xz'?['x','z']:options.axis?[options.axis]:['x','z'];
-          for(const axis of moving){
-            rounded[axis]=Math.round(position[axis]*100)/100;
-            if(options.tolerance>0){
-              const values=line.points.filter((p,i)=>Math.abs(i-selection.index)>1).map(p=>p[axis]);
-              const nearest=values.sort((a,b)=>Math.abs(a-rounded[axis])-Math.abs(b-rounded[axis]))[0];
-              if(nearest!==undefined&&Math.abs(nearest-rounded[axis])<=options.tolerance)rounded[axis]=nearest;
-            }
-          }
-          const result=isPoint?L.movePoint(state,selection.id,selection.index,rounded):L.moveSegment(state,selection.id,selection.index,rounded,{corner});
+          for(const axis of moving)rounded[axis]=Math.round(position[axis]*100)/100;
+          const candidates=[...line.points,...(options.snapPoints||[])],excluded=isPoint?[selection.index]:[selection.index,selection.index+1];
+          const snapped=L.snapPosition(candidates,excluded,rounded,options.tolerance,this.edit.snap,moving);
+          this.edit.snap=snapped.guides;
+          const result=isPoint?L.movePoint(state,selection.id,selection.index,snapped.position):L.moveSegment(state,selection.id,selection.index,snapped.position,{corner});
           this.edit.result=result;this.selection={...selection,index:result.index};this.api.guides({},corner);this.api.preview(result.state);$('connection-error').textContent='';return;
         }
         const axes=isPoint?['x','z']:[line.points[selection.index].z===line.points[selection.index+1].z?'z':'x'];
         // Quantize free dragging before snapping, so alignment to fractional corners stays exact.
         const rounded={x:Math.round(position.x*100)/100,z:Math.round(position.z*100)/100};
-        const extra=state.version>=2?L.snapCandidates(state,selection.id).filter(p=>!line.points.some(q=>Math.abs(q.x-p.x)<1e-6&&Math.abs(q.z-p.z)<1e-6)):[];
+        const extra=(line.externalFloor&&options.snapPoints?options.snapPoints:state.version>=2?L.snapCandidates(state,selection.id):[]).filter(p=>!line.points.some(q=>Math.abs(q.x-p.x)<1e-6&&Math.abs(q.z-p.z)<1e-6));
         const snapped=L.snapPosition([...line.points,...extra],isPoint?[selection.index]:[selection.index,selection.index+1],rounded,options.tolerance,this.edit.snap,axes);
         this.edit.snap=snapped.guides;
         const result=isPoint?L.movePoint(state,selection.id,selection.index,snapped.position):L.moveSegment(state,selection.id,selection.index,snapped.position,{corner});
@@ -146,14 +142,14 @@
       $('properties').hidden=true;$('inspector-empty').hidden=true;
       for(const action of ['corner','add','delete','optimize','reset'])$('connection-'+action).hidden=false;
       const parent=state.equipment.find(e=>e.id===line.parentId),child=state.equipment.find(e=>e.id===line.id);
-      $('connection-scope').textContent=`편집 대상: ${L.editScope(state,line.id).name}${line.crossSpace?' (외부 연결선)':' 연결망 전체'}`;
+      $('connection-scope').textContent=`편집 대상: ${L.editScope(state,line.id).name}${line.externalFloor?' (층별 외부 연결선)':line.crossSpace?' (외부 연결선)':' 연결망 전체'}`;
       $('connection-title').textContent=line.label||`${parent.name} → ${child.name}`;
       if(document.activeElement!==$('connection-diameter'))$('connection-diameter').value=line.diameter;
       const selectedColor=this.selection.kind==='segment'?line.segmentColors[this.selection.index]:null;
       for(const button of $('connection-palette').children){button.disabled=!selectedColor;button.setAttribute('aria-pressed',String(button.dataset.color===selectedColor));}
       const point=this.selection.kind==='point'?line.points[this.selection.index]:null;
       const locked=!!point&&L.isLocked(line,this.selection.index),junction=!!point&&line.pointKinds?.[this.selection.index]==='junction';
-      $('connection-selection').textContent=point?junction?'공유 분기점 · 연결된 가지와 함께 이동':`포인트 ${this.selection.index+1} / ${line.points.length}${locked?' · 설비 고정점 (이동·삭제 불가)':''}`:`선분 ${this.selection.index+1} · 부모 → 자식`;
+      $('connection-selection').textContent=point?junction?'공유 분기점 · 연결된 가지와 함께 이동':`포인트 ${this.selection.index+1} / ${line.points.length}${locked?' · 설비 고정점 (이동·삭제 불가)':line.pointKinds?.[this.selection.index]==='portal'?' · 외부 이름표 (이동 가능)':''}`:`선분 ${this.selection.index+1} · 부모 → 자식`;
       $('connection-point-fields').hidden=!point;
       $('connection-y-field').hidden=!line.crossSpace;
       for(const axis of ['x','y','z'])$('connection-'+axis).disabled=locked;

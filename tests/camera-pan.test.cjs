@@ -10,6 +10,20 @@ for (const file of ['vendor/three.js', 'js/scene.js']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), context);
 }
 const T = context.THREE, Scene = context.FEMSScene;
+test('건물 확대는 현재 3D·평면도 회전각을 유지하고 가까이 있을 때 축소하지 않는다',()=>{
+  for(const mode of ['3d','plan'])for(const yaw of [-1.2,2.4]){
+    const {scene}=fixture(mode);Object.assign(scene,{yaw,planYaw:yaw,pitch:.35,radius:200});scene.updateCamera();
+    const direction=scene.camera.getWorldDirection(new T.Vector3());
+    scene.state.focusBounds={x:30,z:-20,width:20,depth:16,low:0,high:12};
+    scene.fit({preserveAngle:true,zoomInOnly:true});
+    assert.equal(scene.yaw,yaw);assert.equal(scene.planYaw,yaw);assert.equal(scene.pitch,.35);assert.ok(scene.radius<200);
+    assert.ok(direction.distanceTo(scene.camera.getWorldDirection(new T.Vector3()))<1e-6);
+    assert.deepEqual([scene.target.x,scene.target.y,scene.target.z],[30,6,-20]);
+    for(const x of [20,40])for(const z of [-28,-12])for(const y of [0,12]){const p=new T.Vector3(x,y,z).project(scene.camera);assert.ok(Math.abs(p.x)<=1&&Math.abs(p.y)<=1);}
+    scene.radius=10;scene.fit({preserveAngle:true,zoomInOnly:true});assert.equal(scene.radius,10);
+    scene.fit();assert.equal(scene.yaw,.6);assert.equal(scene.pitch,.77);assert.equal(scene.planYaw,0);
+  }
+});
 test('외부 연결 빌보드는 끝점에 투영되고 클릭·숨김·공간 변경을 처리한다',()=>{
   const original=context.document;
   context.document={createElement(){return {style:{},dataset:{},events:{},addEventListener(k,fn){this.events[k]=fn;},setAttribute(){},remove(){this.removed=true;}};}};

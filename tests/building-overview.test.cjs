@@ -4,6 +4,31 @@ const context={console,performance,FEMSModel:M,FEMSConnections:L};context.window
 for(const file of ['vendor/three.js','js/equipment-3d.js','js/connection-view.js'])vm.runInContext(fs.readFileSync(file,'utf8'),context);
 const T=context.THREE;
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-6,`${a} != ${b}`);
+test('대지 연결은 회전·이동·크기를 반영한 건물 외벽에서 끝나며 전력 방향과 원본을 보존한다',()=>{
+  for(const rotation of [0,37,90,157])for(const incoming of [true,false]){
+    let state=fixture();Object.assign(state.buildings[0],{rotation,width:34,depth:28,x:22,z:-8});
+    state=L.changePowerLink(state,...(incoming?['out','cross']:['cross','out']));
+    const before=JSON.stringify(state),display=S.view(state),renderer=new context.FEMSConnectionView(new T.Scene());renderer.setState(display);
+    const lines=renderer.lines.filter(l=>l.buildingEntry);assert.equal(lines.length,1);
+    const line=lines[0],end=incoming?line.points.at(-1):line.points[0],site=incoming?line.points[0]:line.points.at(-1),b=state.buildings[0];
+    const a=rotation*Math.PI/180,x=Math.cos(a)*(end.x-b.x)-Math.sin(a)*(end.z-b.z),z=Math.sin(a)*(end.x-b.x)+Math.cos(a)*(end.z-b.z);
+    near(Math.max(Math.abs(x)/(b.width/2),Math.abs(z)/(b.depth/2)),1);near(site.x,-20);near(site.z,0);
+    assert.equal(line.parentId,incoming?'out':'cross');assert.equal(line.segmentColors.length,line.points.length-1);assert.ok(line.readOnly);
+    assert.equal(JSON.stringify(state),before);
+    for(const scope of [{buildingId:'building'},{floorId:'f2'},{buildingId:'building',preview:true}])assert.equal(context.FEMSConnectionView.buildingEntryRoutes(S.view(state,scope)).length,0);
+    assert.equal(context.FEMSConnectionView.buildingEntryRoutes({...display,hideConnections:true}).length,0);
+    assert.ok(context.FEMSConnectionView.crossSpaceRoutes(S.view(state,{buildingId:'building'})).some(l=>l.id===line.id&&!l.readOnly));
+  }
+});
+test('대지 외벽 연결은 수동 경로·구간 색상·지름을 보존하고 첫 진입 이후를 숨긴다',()=>{
+  let state=fixture();Object.assign(state.buildings[0],{x:0,z:0,rotation:0,width:30,depth:24});
+  state=L.changePowerLink(state,'out','cross');const id=L.external.idFor('out','cross'),original=L.external.route(state,id);
+  const start=original.points[0],end=original.points.at(-1),points=[start,{...start,z:-20},{...start,x:0,z:-20},{...end,x:0,z:-20},{...end,x:0},end];
+  state=L.external.store(state,id,points,points.slice(1).map((_,i)=>L.palette[i%L.palette.length][1]));
+  const before=JSON.stringify(state),line=context.FEMSConnectionView.buildingEntryRoutes(S.view(state))[0];
+  assert.equal(line.points.length,5);near(line.points.at(-1).z,-12);near(line.points.at(-1).x,0);
+  assert.deepEqual(Array.from(line.segmentColors),state.externalRoutes[0].segmentColors.slice(0,4));near(line.diameter,original.diameter);assert.equal(JSON.stringify(state),before);
+});
 test('층 외부 연결은 경계 3m 밖에서 끝나고 실제 전력 방향과 원본을 보존한다',()=>{
   const state=M.validate(L.changePowerLink(fixture(),'out','a')),before=JSON.stringify(state);
   const view=S.view(state,{floorId:'f1'}),routes=context.FEMSConnectionView.externalFloorRoutes(view);
@@ -11,7 +36,7 @@ test('층 외부 연결은 경계 3m 밖에서 끝나고 실제 전력 방향과
   for(const line of routes){
     const p=line.portal.point;near(Math.max(Math.abs(p.x)-view.site.width/2,Math.abs(p.z)-view.site.depth/2),3);
     const local=state.equipment.find(e=>e.id==='a'),end=line.parentId==='a'?line.points[0]:line.points.at(-1);
-    near(end.x,local.x);near(end.z,local.z);assert.equal(line.readOnly,true);
+    near(end.x,local.x);near(end.z,local.z);assert.ok(!line.readOnly);
     assert.ok(['out','cross'].includes(line.portal.targetId));assert.ok(line.portal.path.includes(state.equipment.find(e=>e.id===line.portal.targetId).name));
   }
   assert.equal(JSON.stringify(state),before);
@@ -29,7 +54,7 @@ test('다른 층·대지·다른 건물의 다중 연결 끝점을 분리하고 
   assert.ok(view.lines.some(l=>!l.readOnly&&l.parentId==='a'));
   const camera=new T.OrthographicCamera(-30,30,30,-30,.1,300);camera.position.set(0,100,0);camera.up.set(0,0,-1);camera.lookAt(0,0,0);camera.updateMatrixWorld();
   view.update(camera,600,'plan',null,null);
-  for(const line of portals){const p=view.project(line.portal.point,line,camera,{left:0,top:0,width:600,height:600});assert.equal(view.pick({clientX:p.x,clientY:p.y},camera,{left:0,top:0,width:600,height:600}),null);assert.ok(line.handles.every(h=>!h.dot.visible));}
+  for(const line of portals){const p=view.project(line.portal.point,line,camera,{left:0,top:0,width:600,height:600});assert.ok(view.pick({clientX:p.x,clientY:p.y},camera,{left:0,top:0,width:600,height:600}));assert.ok(line.handles.every(h=>!h.dot.visible));}
   state=L.changePowerLink(state,'remote','a',false); // renderer can safely rebuild when document changes
   view.setState(S.view(state,{floorId:'f2'}));assert.ok(view.lines.filter(l=>l.portal).every(l=>l.portal.targetId!=='cross'));
 });
@@ -68,7 +93,7 @@ test('층 선택 화면의 연결선은 각 층 좌표·높이로 표시하고 �
   const camera=new T.OrthographicCamera(-60,60,60,-60,.1,300);camera.position.set(0,100,0);camera.up.set(0,0,-1);camera.lookAt(0,0,0);camera.updateMatrixWorld();
   const line=view.lines.find(l=>l.parentId==='c'),rect={left:0,top:0,width:600,height:600},p=view.project(line.points[0],line,camera,rect);
   assert.equal(view.pick({clientX:p.x,clientY:p.y},camera,rect),null);
-  view.setState(S.view(state,{floorId:'f2'}));assert.ok(view.lines.length);assert.ok(view.lines.filter(l=>!l.externalFloor).every(l=>!l.readOnly&&l.parentId==='c'));assert.ok(view.lines.filter(l=>l.externalFloor).every(l=>l.readOnly));
+  view.setState(S.view(state,{floorId:'f2'}));assert.ok(view.lines.length);assert.ok(view.lines.filter(l=>!l.externalFloor).every(l=>!l.readOnly&&l.parentId==='c'));assert.ok(view.lines.filter(l=>l.externalFloor).every(l=>!l.readOnly));
   for(const line of view.lines)near(line.height,.5*.08+.08+line.diameter/2);
   assert.deepEqual(state,before);
 });

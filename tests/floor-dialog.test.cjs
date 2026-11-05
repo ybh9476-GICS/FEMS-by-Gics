@@ -54,6 +54,15 @@ test('건물 선택은 투명 외형과 층 선택 화면으로 진입하고 뒤
   ui.back();assert.equal(ui.context.buildingId,undefined);assert.deepEqual(ui.display(state).equipment.map(e=>e.id),[state.equipment[0].id,'building']);assert.deepEqual(state,before);
 });
 
+test('건물 선택은 각도 유지 확대를 요청하며 층 진입·대지 전체 보기는 기존 맞춤을 사용한다',()=>{
+  const {ui,state}=fixture(),options=[];ui.api.fit=value=>options.push(value);ui.context={};
+  state.floors.push({id:'floor',buildingId:'building',name:'1F',level:'1F',x:0,z:0,rotation:0,width:20,depth:16,height:.2,elevation:0});
+  ui.choose('building');assert.equal(options.at(-1).preserveAngle,true);assert.equal(options.at(-1).zoomInOnly,true);
+  ui.choose('floor',{billboard:true});assert.equal(options.at(-1),undefined);
+  ui.back();assert.equal(options.at(-1).preserveAngle,true);assert.equal(options.at(-1).zoomInOnly,false);
+  ui.back();assert.equal(options.at(-1),undefined);
+});
+
 test('건물에 연결되지 않은 층은 뒤로가기로 대지에 복귀한다',()=>{
   const {ui,state}=fixture();state.floors.push({id:'floor',name:'독립 층',x:0,z:0,rotation:0,width:20,depth:16,height:.2,elevation:0});
   ui.choose('floor',{billboard:true});assert.equal(ui.context.floorId,'floor');ui.back();assert.equal(ui.context.floorId,undefined);assert.equal(ui.selected,null);

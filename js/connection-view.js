@@ -2,34 +2,46 @@
   'use strict';
   const T=root.THREE,L=root.FEMSConnections;
   class ConnectionView {
+    static buildingEntryRoutes(state){
+      if(state.hideConnections||state.scopeFloorId||state.focusBounds)return [];
+      const source=state.connectionSource||state,byId=new Map(source.equipment.map(e=>[e.id,e]));
+      const visible=state.visibleEquipment||new Set(state.equipment.map(e=>e.id));
+      return L.external.links(source).flatMap(link=>{
+        const from=byId.get(link.from),to=byId.get(link.to);
+        if(!!from.floorId===!!to.floorId)return [];
+        const incoming=!from.floorId,site=incoming?from:to,inside=incoming?to:from;
+        const floor=source.floors?.find(f=>f.id===inside.floorId),building=source.buildings?.find(b=>b.id===floor?.buildingId);
+        if(!building||!visible.has(site.id)||!visible.has(building.id))return [];
+        const line=L.external.route(source,L.external.idFor(link.from,link.to));
+        const points=incoming?line.points:[...line.points].reverse(),colors=incoming?line.segmentColors:[...line.segmentColors].reverse();
+        const angle=building.rotation*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
+        const local=p=>({x:c*(p.x-building.x)-s*(p.z-building.z),z:s*(p.x-building.x)+c*(p.z-building.z)});
+        const start=local(points[0]),half={x:building.width/2,z:building.depth/2};
+        // A site object already within the footprint has no exterior leg to show.
+        if(Math.abs(start.x)<=half.x&&Math.abs(start.z)<=half.z)return [];
+        const clipped=[points[0]],segmentColors=[];
+        for(let i=1;i<points.length;i++){
+          const a=points[i-1],b=points[i],p=local(a),q=local(b);let enter=0,leave=1;
+          for(const axis of ['x','z']){
+            const delta=q[axis]-p[axis];
+            if(Math.abs(delta)<1e-9){if(Math.abs(p[axis])>half[axis]+1e-9){enter=2;break;}continue;}
+            const low=(-half[axis]-p[axis])/delta,high=(half[axis]-p[axis])/delta;
+            enter=Math.max(enter,Math.min(low,high));leave=Math.min(leave,Math.max(low,high));
+          }
+          if(enter<=leave&&enter<=1&&leave>=0){
+            if(enter>1e-9){clipped.push({x:a.x+(b.x-a.x)*enter,y:a.y+(b.y-a.y)*enter,z:a.z+(b.z-a.z)*enter});segmentColors.push(colors[i-1]);}
+            if(clipped.length<2)return [];
+            const length=ps=>ps.slice(1).reduce((sum,p,j)=>sum+Math.hypot(p.x-ps[j].x,p.y-ps[j].y,p.z-ps[j].z),0);
+            return [{...line,points:incoming?clipped:clipped.reverse(),segmentColors:incoming?segmentColors:segmentColors.reverse(),distanceOffset:incoming?0:length(line.points)-length(clipped),readOnly:true,buildingEntry:true}];
+          }
+          clipped.push(b);segmentColors.push(colors[i-1]);
+        }
+        return [];
+      });
+    }
     static externalFloorRoutes(state){
       if(!state.scopeFloorId||state.hideConnections)return [];
-      const source=state.connectionSource||state,items=new Map(source.equipment.map(e=>[e.id,e])),edges=L.routes(source),used=[],routes=[];
-      const half={x:state.site.width/2,z:state.site.depth/2},clamp=(v,h)=>Math.max(-h,Math.min(h,v));
-      const spacing=Math.min(2,Math.min(state.site.width,state.site.depth)/(L.powerLinks(source).length+1));
-      for(const link of L.powerLinks(source).slice().sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)))){
-        const parent=items.get(link.from),child=items.get(link.to);
-        if(!parent||!child||(parent.floorId||null)===(child.floorId||null))continue;
-        const local=[parent,child].find(e=>e.floorId===state.scopeFloorId);if(!local)continue;
-        const other=local===parent?child:parent,edge=edges.find(l=>l.parentId===parent.id&&(l.childIds||[l.id]).includes(child.id)),style=edge||L.style(child),candidates=[];
-        for(const axis of ['x','z'])for(const sign of [-1,1]){
-          const across=axis==='x'?'z':'x',base=clamp(local[across],half[across]),side=axis+sign;
-          for(let n=0;n<=used.length;n++)for(const direction of n?[-1,1]:[1]){
-            const lane=clamp(base+n*spacing*direction,half[across]);
-            if(used.some(p=>p.side===side&&Math.abs(p.lane-lane)<spacing*.95))continue;
-            const end={[axis]:sign*(half[axis]+3),[across]:lane};
-            candidates.push({axis,side,lane,end,cost:Math.abs(end[axis]-local[axis])+Math.abs(lane-local[across])+used.filter(p=>p.side===side).length*Math.max(state.site.width,state.site.depth)*2});
-          }
-        }
-        candidates.sort((a,b)=>a.cost-b.cost);const chosen=candidates[0];if(!chosen)continue;used.push(chosen);
-        const {axis,end}=chosen,start={x:local.x,z:local.z},lead={...start,[axis]:end[axis]};
-        const points=[start,lead,end].filter((p,i,a)=>!i||Math.hypot(p.x-a[i-1].x,p.z-a[i-1].z)>1e-6);
-        if(local!==parent)points.reverse();
-        const floor=source.floors?.find(f=>f.id===other.floorId),building=source.buildings?.find(b=>b.id===floor?.buildingId);
-        const path=[building?.name,floor?.name||'대지',other.name].filter(Boolean).join(' › ');
-        routes.push({id:'portal:'+JSON.stringify([parent.id,child.id]),parentId:parent.id,childIds:[child.id],rootId:L.rootEquipmentId(source,parent.id),points,segmentColors:points.slice(1).map(()=>style.color),diameter:style.diameter,color:style.color,elevation:state.connectionSurfaceY||0,readOnly:true,externalFloor:true,portal:{targetId:other.id,name:other.name,path,point:end}});
-      }
-      return routes;
+      return L.floor.routes(state.connectionSource||state,state.scopeFloorId).map(line=>({...line,elevation:state.connectionSurfaceY||0}));
     }
     static crossingGaps(routes){
       const gaps=new Map(),segments=[];
@@ -95,7 +107,7 @@
         const result={...line,rootId:L.rootEquipmentId(source,line.parentId),elevation:state.connectionSurfaceY||0};
         if(frame){const a=frame.rotation*Math.PI/180,c=Math.cos(a),s=Math.sin(a);result.points=line.points.map(p=>({x:frame.x+c*p.x+s*p.z,z:frame.z-s*p.x+c*p.z}));result.elevation=frame.elevation;result.readOnly=true;}
         return result;
-      }).concat(ConnectionView.crossSpaceRoutes(state),ConnectionView.externalFloorRoutes(state)),key=JSON.stringify(routes);
+      }).concat(ConnectionView.crossSpaceRoutes(state),ConnectionView.externalFloorRoutes(state),ConnectionView.buildingEntryRoutes(state)),key=JSON.stringify(routes);
       if(key===this.key)return;
       this.key=key;this.clear();
       const crossingGaps=ConnectionView.crossingGaps(routes),junctions=new Set();

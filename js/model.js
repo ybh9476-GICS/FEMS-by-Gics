@@ -79,6 +79,7 @@
     if(raw.version>=3)S.validate(raw,result);
     if(raw.version>=4)result.powerLinks=L.validatePowerLinks(raw.powerLinks,result.equipment);
     if(raw.version>=2)result.networks=L.validateNetworks(raw,result);
+    if(raw.floorRoutes!=null)result.floorRoutes=L.floor.validate(raw.floorRoutes,result);
     if(raw.externalRoutes!=null)result.externalRoutes=L.external.validate(raw.externalRoutes,result);
     if(raw.project!=null){
       const p=raw.project,F=typeof module!=='undefined'&&module.exports?require('./asset-format.js'):root.FEMSAssetFormat;

@@ -148,13 +148,16 @@
     resize(){const w=this.host.clientWidth,h=this.host.clientHeight;if(!w||!h)return;this.width=w;this.height=h;this.renderer.setSize(w,h);this.perspective.aspect=w/h;this.perspective.updateProjectionMatrix();this.updateCamera();}
     updateCamera(){this.perspective.far=Math.max(600,this.radius*4+Math.hypot(this.state?.site.width||60,this.state?.site.depth||40)*2);this.perspective.near=Math.max(.01,this.radius/10000);this.perspective.updateProjectionMatrix();const aspect=(this.width||1)/(this.height||1);this.ortho.left=-this.radius*aspect/2;this.ortho.right=this.radius*aspect/2;this.ortho.top=this.radius/2;this.ortho.bottom=-this.radius/2;const levels=this.state?.equipment||[],top=Math.max(0,...levels.map(e=>(e.y||0)+e.height)),bottom=Math.min(0,...levels.map(e=>e.y||0));this.ortho.near=.01;this.ortho.far=Math.max(600,top-bottom+200);this.ortho.updateProjectionMatrix();this.ortho.position.set(this.target.x,Math.max(100,top+100),this.target.z);this.ortho.up.set(-Math.sin(this.planYaw),0,-Math.cos(this.planYaw));this.ortho.lookAt(this.target);
       this.perspective.position.set(this.target.x+this.radius*Math.sin(this.yaw)*Math.cos(this.pitch),this.target.y+this.radius*Math.sin(this.pitch),this.target.z+this.radius*Math.cos(this.yaw)*Math.cos(this.pitch));this.perspective.lookAt(this.target);this.camera.updateMatrixWorld();this.invalidate();}
-    fit(){
+    fit({preserveAngle=false,zoomInOnly=false}={}){
       const items=this.state?.equipment||[],focus=this.state?.focusBounds;
       const low=focus?.low??Math.min(0,...items.map(e=>e.y||0)),high=focus?.high??Math.max(0,...items.map(e=>(e.y||0)+e.height));
-      this.target.set(focus?.x||0,(low+high)/2,focus?.z||0);this.yaw=.6;this.planYaw=0;this.pitch=.77;
+      this.target.set(focus?.x||0,(low+high)/2,focus?.z||0);
+      if(!preserveAngle){this.yaw=.6;this.planYaw=0;this.pitch=.77;}
       const margin=this.state?.scopeFloorId?8:0,width=(focus?.width||this.state?.site.width||60)+margin,depth=(focus?.depth||this.state?.site.depth||40)+margin,aspect=(this.width||1)/(this.height||1);
       const halfFov=Math.atan(Math.tan(19*Math.PI/180)*Math.min(1,aspect));
-      this.radius=this.mode==='plan'?Math.max(depth*1.25,width/aspect*1.25):Math.hypot(width,depth,high-low)/2/Math.sin(halfFov)*1.1;this.updateCamera();
+      const c=Math.abs(Math.cos(this.planYaw)),s=Math.abs(Math.sin(this.planYaw));
+      const radius=this.mode==='plan'?Math.max((c*depth+s*width)*1.25,(c*width+s*depth)/aspect*1.25):Math.hypot(width,depth,high-low)/2/Math.sin(halfFov)*1.1;
+      this.radius=zoomInOnly?Math.min(this.radius,radius):radius;this.updateCamera();
     }
     zoom(direction){const size=Math.max(this.state?.site.width||60,this.state?.site.depth||40),aspect=(this.width||1)/(this.height||1);this.radius=Math.max(Math.min(7,size/2),Math.min(Math.max(500,size*10/Math.min(1,aspect)),this.radius*direction));this.updateCamera();}
     pan(dx, dy) {
@@ -239,7 +242,8 @@
           const height=route.crossSpace?source.y:(this.state.connectionSurfaceY||0)+.08+route.diameter/2+(link.handle?.04:.02);
           const p=this.floor(e,height);this.setPointer(e);
           const connectionAxis=link.axis?this.connectionGizmo.begin(link.axis,this.ray.ray,this.camera,source):null;
-          this.drag={connection:link,connectionAxis,crossSpace:route.crossSpace,height,button:0,pointerId:e.pointerId,x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,moved:false,offset:p&&source?{x:source.x-p.x,z:source.z-p.z}:{x:0,z:0}};
+          const snapPoints=(route.crossSpace||route.externalFloor)?this.connections.lines.filter(l=>l.id!==link.id).flatMap(l=>l.points.map(p=>({...p,y:p.y??l.height}))):undefined;
+          this.drag={connection:link,snapPoints,connectionAxis,crossSpace:route.crossSpace,portal:route.externalFloor,height,button:0,pointerId:e.pointerId,x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,moved:false,offset:p&&source?{x:source.x-p.x,z:source.z-p.z}:{x:0,z:0}};
           canvas.setPointerCapture(e.pointerId);this.host.style.cursor='default';return;
         }
         const point=this.floor(e);this.drag={x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,button:e.button,pointerId:e.pointerId,id,label:target.label,moved:false};
@@ -253,8 +257,8 @@
           if(!d.moved)return;
           if(d.connection.kind==='point'||d.connection.handle){
             if(d.connection.locked)return;
-            if(d.connectionAxis){this.setPointer(e);const p=this.connectionGizmo.positionForPoint(d.connectionAxis,this.ray.ray);if(p)this.handlers.connectionPreview(p,{axis:d.connection.axis,tolerance:e.shiftKey?0:this.connectionTolerance(e,d.height)});}
-            else{const p=this.floor(e,d.height);if(p)this.handlers.connectionPreview(d.crossSpace?{x:p.x+d.offset.x,y:d.height,z:p.z+d.offset.z}:{x:Math.max(-this.state.site.width/2,Math.min(this.state.site.width/2,p.x+d.offset.x)),z:Math.max(-this.state.site.depth/2,Math.min(this.state.site.depth/2,p.z+d.offset.z))},{tolerance:e.shiftKey?0:this.connectionTolerance(e,d.height)});}
+            if(d.connectionAxis){this.setPointer(e);const p=this.connectionGizmo.positionForPoint(d.connectionAxis,this.ray.ray);if(p)this.handlers.connectionPreview(p,{axis:d.connection.axis,tolerance:e.shiftKey?0:this.connectionTolerance(e,d.height),snapPoints:d.snapPoints});}
+            else{const p=this.floor(e,d.height);if(p)this.handlers.connectionPreview(d.crossSpace?{x:p.x+d.offset.x,y:d.height,z:p.z+d.offset.z}:{x:Math.max(-this.state.site.width/2-(d.portal?3:0),Math.min(this.state.site.width/2+(d.portal?3:0),p.x+d.offset.x)),z:Math.max(-this.state.site.depth/2-(d.portal?3:0),Math.min(this.state.site.depth/2+(d.portal?3:0),p.z+d.offset.z))},{tolerance:e.shiftKey?0:this.connectionTolerance(e,d.height),snapPoints:d.snapPoints});}
           }
           else{this.pan(e.clientX-d.lastX,e.clientY-d.lastY);this.updateCamera();}
           d.lastX=e.clientX;d.lastY=e.clientY;return;

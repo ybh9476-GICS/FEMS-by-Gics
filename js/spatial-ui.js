@@ -65,7 +65,7 @@
       const floor=this.api.state().floors.find(f=>f.id===floorId);
       this.context=floor?.buildingId?{buildingId:floor.buildingId}:{};
     }
-    enter(id,billboard=false){this.finish();const state=this.api.state(),k=S.kind(state,id),n=S.get(state,id);if(!k)return;this.selected=id;if(k==='building')this.context={buildingId:id};else if(billboard)this.context={buildingId:n.buildingId,floorId:id};else this.focusFloor(id);this.api.refresh();this.api.fit();}
+    enter(id,billboard=false){const leavingFloor=!!this.context.floorId;this.finish();const state=this.api.state(),k=S.kind(state,id),n=S.get(state,id);if(!k)return;this.selected=id;if(k==='building')this.context={buildingId:id};else if(billboard)this.context={buildingId:n.buildingId,floorId:id};else this.focusFloor(id);this.api.refresh();this.api.fit(this.context.buildingId&&!this.context.floorId?{preserveAngle:true,zoomInOnly:!leavingFloor}:undefined);}
     choose(id,{billboard=false}={}){
       if(this.draft){this.api.toast('층 등록을 완료하거나 취소하세요.');return true;}
       if(id==='@site'){this.finish();this.selected=null;this.context={};this.api.clearEquipment();this.api.disarm();this.api.refresh();this.api.fit();return true;}
