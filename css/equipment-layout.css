@@ -161,8 +161,6 @@
 .space-navigation svg { width:16px; height:16px; }
 .space-breadcrumb .space-navigation:disabled { opacity:1; cursor:default; color:#71888b; }
 @media(max-width:760px) { .space-breadcrumb { order:3; flex-basis:100%; margin:0; } }
-.space-portals { position:absolute; bottom:64px; left:12px; display:flex; flex-direction:column; align-items:flex-start; gap:4px; max-height:25%; max-width:70%; overflow:auto; }
-.space-portals button { font-size:10px; padding:5px 8px; background:#ffffffed; text-align:left; overflow-wrap:anywhere; }
 .asset-library-bar > div { display:flex; flex-wrap:wrap; }
 #space-warning { white-space:pre-line; }
 @media(max-width:1150px) { #spatial-properties { padding-inline:16px; } }

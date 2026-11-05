@@ -63,6 +63,31 @@ test('건물 선택은 각도 유지 확대를 요청하며 층 진입·대지 �
   ui.back();assert.equal(options.at(-1),undefined);
 });
 
+test('빈 화면 클릭은 건물·층 선택을 유지하고 카메라와 데이터를 변경하지 않는다',()=>{
+  const {ui,state,counts}=fixture();state.floors.push({id:'floor',buildingId:'building',name:'1F',x:0,z:0,rotation:0,width:20,depth:16,height:.2,elevation:0});
+  const before=M.clone(state);
+  for(const id of ['building','floor']){
+    ui.choose(id,{billboard:true});const context=JSON.stringify(ui.context),calls=counts();
+    assert.equal(ui.keepSelection(),true);assert.equal(ui.selected,id);assert.equal(JSON.stringify(ui.context),context);assert.deepEqual(counts(),calls);
+    ui.clear();assert.equal(ui.keepSelection(),true);assert.equal(ui.selected,id);
+    assert.equal(JSON.stringify(ui.context),context);assert.equal(counts().fit,calls.fit);
+  }
+  ui.choose('building');ui.choose('@site');assert.equal(ui.keepSelection(),false);assert.deepEqual(state,before);
+  ui.selected='deleted-space';assert.equal(ui.keepSelection(),false);
+});
+
+test('설비·연결선 선택 해제 후 현재 공간 정보를 복구하고 카메라는 다시 맞추지 않는다',()=>{
+  const {ui,state,counts}=fixture();state.floors.push({id:'floor',buildingId:'building',name:'1F',x:0,z:0,rotation:0,width:20,depth:16,height:.2,elevation:0});
+  let equipmentSelected=true,connectionSelected=true;
+  ui.api.clearEquipment=()=>{equipmentSelected=false;connectionSelected=false;};
+  for(const context of [{buildingId:'building'},{buildingId:'building',floorId:'floor'},{floorId:'floor'}]){
+    ui.context=context;ui.selected=null;equipmentSelected=connectionSelected=true;const fits=counts().fit,before=JSON.stringify(state);
+    assert.equal(ui.keepSelection(),true);assert.equal(ui.selected,context.floorId||context.buildingId);
+    assert.equal(equipmentSelected,false);assert.equal(connectionSelected,false);assert.equal(counts().fit,fits);assert.equal(JSON.stringify(state),before);
+  }
+  ui.selected=null;ui.context={buildingId:'deleted'};assert.equal(ui.keepSelection(),false);
+});
+
 test('건물에 연결되지 않은 층은 뒤로가기로 대지에 복귀한다',()=>{
   const {ui,state}=fixture();state.floors.push({id:'floor',name:'독립 층',x:0,z:0,rotation:0,width:20,depth:16,height:.2,elevation:0});
   ui.choose('floor',{billboard:true});assert.equal(ui.context.floorId,'floor');ui.back();assert.equal(ui.context.floorId,undefined);assert.equal(ui.selected,null);

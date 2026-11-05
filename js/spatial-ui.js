@@ -35,7 +35,6 @@
       this.registration.addEventListener('cancel',event=>{event.preventDefault();this.cancelRegistration();});
       $('floors-close').onclick=()=>this.cancelRegistration();
       this.crumb=document.createElement('nav');this.crumb.className='space-breadcrumb';this.crumb.setAttribute('aria-label','공간 이동');document.querySelector('.history-tools').before(this.crumb);
-      this.portals=document.createElement('div');this.portals.className='space-portals';$('viewport').append(this.portals);
       this.membership=document.createElement('fieldset');this.membership.innerHTML='<legend>소속 공간</legend><p id="equipment-space-path" class="space-membership-path"></p>';
       $('properties').append(this.membership);
       const power=document.createElement('fieldset');$('properties').append(power);this.powerPicker=new root.FEMSPowerPicker(power,{...api,finish:()=>{this.finish();api.finishEquipmentEdit?.();}});
@@ -78,6 +77,13 @@
       else this.choose('@site');
     }
     clear(){this.finish();this.selected=null;}
+    keepSelection(){
+      const state=this.api.state();
+      if(S.get(state,this.selected)){this.finish();return true;}
+      const id=this.context.floorId||this.context.buildingId;
+      if(!S.get(state,id))return false;
+      this.finish();this.api.clearEquipment();this.selected=id;this.api.disarm();this.api.refresh();return true;
+    }
     moveEquipment(ids,floorId,hierarchy=null){
       this.finish();const state=this.api.state(),moving=new Set(ids);
       // Carry the visible equipment subtree, but preserve links to other spaces.
@@ -330,12 +336,6 @@
       if(f)this.crumb.append(document.createTextNode(' › '),button(f.name,()=>this.choose(f.id)));
       for(const item of this.crumb.querySelectorAll('button:not(.space-navigation)'))item.title=item.textContent;
       this.crumb.lastElementChild.setAttribute('aria-current','location');
-      this.portals.replaceChildren();const current=f?.id||null;
-      if(!b&&!f)for(const link of root.FEMSConnections.powerLinks(state)){const child=state.equipment.find(e=>e.id===link.to),parent=state.equipment.find(e=>e.id===link.from);if(!parent||!child||(parent.floorId||null)===(child.floorId||null))continue;
-        const local=[parent,child].find(e=>(e.floorId||null)===current);if(!local)continue;const other=local===parent?child:parent,target=state.floors?.find(f=>f.id===other.floorId);
-        const building=state.buildings?.find(b=>b.id===target?.buildingId);
-        this.portals.append(button(local.name+' ↔ '+(building?building.name+' / ':'')+(target?.name||'대지')+' · '+other.name,()=>this.api.selectEquipment(other.id)));
-      }
       if(!preserve){
         const ids=this.api.selectedIds();$('equipment-space-path').textContent=this.membershipText(ids);
         this.powerPicker?.update();
