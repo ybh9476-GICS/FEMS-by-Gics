@@ -11,6 +11,15 @@ function boot(storage=new Map(),failWrite=()=>false,failRead=false){
   return context.window.result;
 }
 const plain=value=>JSON.parse(JSON.stringify(value));
+test('기본 프로젝트 저장 오류는 HTTP 원인과 서버 진단을 구분한다',()=>{
+  assert.match(D.saveError(400,'Invalid FEMS drawing.'),/로컬 서버를 다시 시작/);
+  assert.match(D.saveError(400,'저장 오류: 추가 에셋 파일을 찾을 수 없습니다.'),/추가 에셋 파일을 찾을 수 없습니다/);
+  assert.match(D.saveError(413),/2 MB/);
+  assert.match(D.saveError(500,'저장 오류: 저장 공간이 부족합니다.'),/저장 공간이 부족합니다/);
+  assert.match(D.saveError(409),/다른 저장/);
+  assert.match(D.saveError(404),/HTTP 404/);
+  assert.doesNotMatch(D.saveError(500,'<html>error</html>'),/<html>/);
+});
 function expected(){const result=bundled();result.project.baseRevision=revision;result.project.kind='new';return result;}
 function saved(kind='new'){return P.attach({...M.empty(),name:'기존 작업'},[],kind,'b'.repeat(64));}
 
@@ -20,7 +29,7 @@ test('교체 가능한 기본 도면은 저장 검증과 직렬화 왕복에서 
 });
 test('첫 방문은 배포 기본값과 에셋을 불러오며 원본은 수정하지 않는다',()=>{
   const original=bundled(),storage=new Map(),r=boot(storage);assert.deepEqual(plain(r.initial),expected());assert.equal(r.autosaveAllowed,true);assert.equal(storage.get(applied),revision);
-  r.initial.equipment[0].x+=1;assert.deepEqual(bundled(),original);assert.equal(r.history.past.length,0);
+  r.initial.site.width+=1;assert.deepEqual(bundled(),original);assert.equal(r.history.past.length,0);
 });
 test('새 기본값은 이전 빈 작업과 기존 작업 유지 기록보다 우선하고 백업·실행 취소를 제공한다',()=>{
   for(const oldRevision of ['b'.repeat(64),revision]){

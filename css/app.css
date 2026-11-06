@@ -14,4 +14,22 @@
 .history-tools .icon-button{width:32px;height:28px;min-width:32px;padding:6px 8px}
 .history-tools .icon-button svg{width:16px;height:16px}
 
-.external-label{pointer-events:auto;cursor:pointer;font:inherit;font-size:9px;padding:4px 7px;color:#316c5c}.external-label:hover,.external-label:focus-visible{border-color:#61a28d;background:#f1fff7}.external-label:disabled{pointer-events:none}
+.external-label{transform:translate(-50%,calc(-100% - 10px));pointer-events:auto;cursor:pointer;font:inherit;font-size:9px;padding:4px 7px;color:#316c5c}.external-label:hover,.external-label:focus-visible{border-color:#61a28d;background:#f1fff7}.external-label:disabled{pointer-events:none}
+
+.object-label.building-label{color:#245580;background:#eaf3ff;border-color:#91b5dc}
+.object-label.building-label.selected{color:#173f68;background:#d8eaff;border-color:#487db3}
+.object-label.floor-label{color:#67438b;background:#f3ecfb;border-color:#bea3d7}
+.object-label.floor-label.selected{color:#4f2b74;background:#e7d9f6;border-color:#8e66b3}
+.object-label.building-label.warning,.object-label.floor-label.warning{border-color:#d4ac6a}
+
+/* Hierarchy colors remain consistent when selected; billboard colors are separate. */
+.tree-row[data-space-kind=site] .tree-name strong{color:#008000}
+.tree-row[data-space-kind=building] .tree-name strong,
+.tree-row[data-space-kind=floor] .tree-name strong{color:#0000ff}
+
+#project-backups{margin:20px 0;padding-top:16px;border-top:1px solid var(--line)}
+#project-backups>label{display:block;margin-bottom:8px;font-size:12px;color:var(--muted)}
+.project-backup-controls{display:flex;gap:10px;flex-wrap:wrap}
+.project-backup-controls select{flex:1;min-width:180px;padding:10px 12px;border:1px solid var(--line);border-radius:7px;background:white;color:inherit;font:inherit;font-size:12px}
+.project-backup-controls button{font-size:12px;white-space:nowrap}
+#project-backups .live-edit-note{margin:8px 0 0}

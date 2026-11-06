@@ -78,14 +78,14 @@
     focusFloor(floorId){
       if(floorId&&this.context.floorId===floorId)return;
       const floor=this.api.state().floors.find(f=>f.id===floorId);
-      this.context=floor?.buildingId?{buildingId:floor.buildingId}:{};
+      this.context=floor?{buildingId:floor.buildingId,floorId:floor.id}:{};
     }
     enter(id,billboard=false){const leavingFloor=!!this.context.floorId;this.finish();const state=this.api.state(),k=S.kind(state,id),n=S.get(state,id);if(!k)return;this.selected=id;if(k==='building')this.context={buildingId:id};else if(billboard)this.context={buildingId:n.buildingId,floorId:id};else this.focusFloor(id);this.api.refresh();this.api.fit({preserveAngle:true,zoomInOnly:!!this.context.floorId||!leavingFloor});}
     choose(id,{billboard=false}={}){
       if(this.draft){this.api.toast('층 등록을 완료하거나 취소하세요.');return true;}
-      if(id==='@site'){this.finish();this.selected=null;this.context={};this.api.clearEquipment();this.api.disarm();this.api.refresh();this.api.fit();return true;}
-      const rooftop=this.display(this.api.state()).equipment.find(e=>e.id===id&&e.rooftop);
-      if(rooftop){const f=this.api.state().floors.find(f=>f.id===rooftop.floorId);this.finish();this.context={buildingId:f.buildingId,floorId:f.id};this.api.refresh();this.api.fit({preserveAngle:true,zoomInOnly:true});return false;}
+      if(id==='@site'){this.finish();this.selected=null;this.context={};this.api.clearEquipment();this.api.disarm();this.api.refresh();return true;}
+      const equipment=this.api.state().equipment.find(e=>e.id===id),floor=this.api.state().floors.find(f=>f.id===equipment?.floorId);
+      if(floor&&this.context.floorId!==floor.id){this.finish();this.focusFloor(floor.id);this.api.refresh();this.api.fit({preserveAngle:true,zoomInOnly:true});return false;}
       if(!S.get(this.api.state(),id))return false;
       this.api.clearEquipment();this.api.disarm();this.enter(id,billboard);
       return true;
@@ -109,11 +109,14 @@
         const byId=new Map(state.equipment.map(e=>[e.id,e]));
         for(const id of moving)for(const child of state.equipment)if(child.parentId===id&&(child.floorId||null)===(byId.get(id)?.floorId||null))moving.add(child.id);
       }
+      const spaceChanged=state.equipment.some(e=>moving.has(e.id)&&(e.floorId||null)!==(floorId||null));
       let next=S.moveEquipment(state,[...moving],floorId,true);
       if(hierarchy)next=M.moveEquipmentGroup(next,ids,hierarchy.parentId,hierarchy.referenceId,hierarchy.position);
       this.api.clearEquipment();
       if(this.api.commit(next,hierarchy?'설비의 계층과 소속 공간을 변경했습니다.':'설비의 소속 공간을 변경했습니다.')){
-        this.focusFloor(floorId);this.selected=null;this.api.selectEquipment?.(ids[0],ids);this.api.refresh();this.api.fit();
+        if(spaceChanged){const floor=next.floors.find(f=>f.id===floorId);this.context=floor?{buildingId:floor.buildingId,floorId:floor.id}:{};}
+        this.selected=null;this.api.selectEquipment?.(ids[0],ids,{preserveSpace:true});this.api.refresh();
+        if(spaceChanged)this.api.fit({preserveAngle:true});
       }
     }
     cancelName(){const item=S.get(this.api.state(),this.selected);if(item)$('space-name').value=item.name;}

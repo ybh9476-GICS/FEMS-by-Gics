@@ -1,0 +1,44 @@
+.editor.schematic-mode #scene,.editor.schematic-mode #labels,.editor.schematic-mode #gizmo-rotate,.editor.schematic-mode .scene-heading,.editor.schematic-mode #empty-state,.editor.schematic-mode #graphics-error,.editor.schematic-mode .space-breadcrumb,.editor.schematic-mode .equipment-dock{display:none!important}
+.editor.schematic-mode #labels-toggle{display:none}
+.editor.schematic-mode .statusbar{display:none}
+.editor.schematic-mode .scene-controls{z-index:3;pointer-events:none}
+.editor.schematic-mode .scene-controls>div{pointer-events:auto}
+#schematic{position:absolute;inset:0;display:flex;flex-direction:column;background:#f7faf9;overflow:hidden;color:#344f55}
+.schematic-tools{padding:16px 20px 12px;background:#fff;border-bottom:1px solid #e0e9e5;flex-shrink:0}
+.schematic-tools>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.schematic-tools strong{font-size:15px;color:#244c43}
+.schematic-count{font-size:11px;color:#7d9087}
+.schematic-filters{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:12px}
+.schematic-filters input[type=search]{flex:1;min-width:140px;max-width:300px;padding:7px 10px;font-size:11px}
+.schematic-filters label{display:flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap}
+.schematic-filters input[type=checkbox]{width:auto;accent-color:#227b69}
+.schematic-filters button{font-size:11px;padding:7px 10px;margin-left:auto}
+.schematic-canvas{position:relative;min-height:0;flex:1;background-image:radial-gradient(#dbe6e1 .7px,transparent .7px);background-size:16px 16px}
+.schematic-canvas>svg{display:block;width:100%;height:100%;touch-action:none;user-select:none;cursor:grab}
+.schematic-canvas>svg:active{cursor:grabbing}
+.schematic-node{cursor:pointer;outline:none;--card-accent:#58758b;--card-background:#edf2f6;--card-border:#b3c3cf}
+.schematic-node[data-tone="0"]{--card-accent:#58758b;--card-background:#edf2f6;--card-border:#b3c3cf}
+.schematic-node[data-tone="1"]{--card-accent:#507d91;--card-background:#edf4f7;--card-border:#b1c9d3}
+.schematic-node[data-tone="2"]{--card-accent:#4d827f;--card-background:#edf5f3;--card-border:#b0ceca}
+.schematic-node[data-tone="3"]{--card-accent:#668064;--card-background:#f0f5ed;--card-border:#bfceba}
+.schematic-node[data-tone="4"]{--card-accent:#8a8158;--card-background:#f6f4eb;--card-border:#d2cbb0}
+.schematic-node[data-tone="5"]{--card-accent:#96745d;--card-background:#f7f1eb;--card-border:#d7c3b4}
+.schematic-node[data-tone="6"]{--card-accent:#916f80;--card-background:#f6f0f3;--card-border:#d2bdc8}
+.schematic-node[data-tone="7"]{--card-accent:#7b7194;--card-background:#f2f0f7;--card-border:#c6bfd6}
+.schematic-node .schematic-card{fill:var(--card-background);stroke:var(--card-border);stroke-width:1.3}
+.schematic-node .schematic-card-accent{fill:var(--card-accent);stroke:none;pointer-events:none}
+.schematic-node.neighbor .schematic-card{stroke:var(--card-accent);stroke-width:1.8}
+.schematic-node:hover .schematic-card,.schematic-node:focus-visible .schematic-card{stroke:var(--card-accent);stroke-width:2.5}
+.schematic-node.selected .schematic-card{stroke:var(--card-accent);stroke-width:3.5}
+.schematic-node text{pointer-events:none;font-family:inherit}
+.schematic-node-name{font-size:13px;font-weight:600;fill:#293e4a}
+.schematic-node-code{font-size:10px;fill:#526571}
+.schematic-node-space{font-size:10px;fill:#526571}
+.schematic-column{font-size:10px;fill:#94a59b;letter-spacing:1px}
+.schematic-edge{cursor:pointer;outline:none}
+.schematic-edge-line{fill:none;stroke-width:1.7;stroke-linejoin:round;stroke-dasharray:6 4}
+.schematic-edge.active .schematic-edge-line,.schematic-edge:hover .schematic-edge-line,.schematic-edge:focus-visible .schematic-edge-line{stroke-width:2.7}
+.schematic-edge-hit{fill:none;stroke:transparent;stroke-width:16}
+.schematic-node.muted,.schematic-edge.muted{opacity:.24}
+.schematic-empty{position:absolute;left:10%;right:10%;top:40%;text-align:center;color:#7d9087;font-size:13px;line-height:1.8;pointer-events:none}
+@media(max-width:1000px){.schematic-tools{padding:10px 12px}.schematic-filters{gap:6px}}

@@ -124,6 +124,8 @@
           const hasChildren=children.has(item.id),expanded=!collapsed.has(item.id);
           if(hasChildren)li.setAttribute('aria-expanded',String(expanded));
           const row=document.createElement('div');row.className='tree-row';row.dataset.id=item.id;
+          const spaceKind=item.id==='@site'?'site':state.buildings?.some(b=>b.id===item.id)?'building':state.floors?.some(f=>f.id===item.id)?'floor':null;
+          if(spaceKind)row.dataset.spaceKind=spaceKind;
           const toggle=document.createElement('button');toggle.type='button';toggle.className='tree-toggle';toggle.tabIndex=-1;
           toggle.textContent=hasChildren?(expanded?'▾':'▸'):'·';toggle.disabled=!hasChildren;
           toggle.setAttribute('aria-label',`${item.code||item.name} ${expanded?'접기':'펼치기'}`);

@@ -26,7 +26,7 @@ test('기본 도면 저장은 동일 출처의 검증된 데이터만 고정 파
       assert.equal(await fs.readFile(target,'utf8'),'original');
     }
     for(const invalid of ['{broken','{}',JSON.stringify({...state,equipment:[{id:'bad'}]})]){
-      assert.equal((await request(invalid)).status,400);
+      const rejected=await request(invalid);assert.equal(rejected.status,400);assert.match(rejected.text,/^저장 오류: /);
       assert.equal(await fs.readFile(target,'utf8'),'original');
     }
     assert.equal((await request(' '.repeat(2*1024*1024+1))).status,413);
@@ -37,7 +37,7 @@ test('기본 도면 저장은 동일 출처의 검증된 데이터만 고정 파
     assert.deepEqual(await fs.readdir(path.join(root,'js')),['default-layout.js']);
     // A missing target must not silently create or redirect the fixed file.
     await fs.rename(target,target+'.backup');
-    assert.equal((await request(body)).status,500);
+    const missing=await request(body);assert.equal(missing.status,500);assert.match(missing.text,/파일 또는 저장 폴더가 없습니다/);
     assert.equal(await fs.readFile(target+'.backup','utf8'),D.serialize(state));
   }finally{
     await new Promise(resolve=>server.close(resolve));

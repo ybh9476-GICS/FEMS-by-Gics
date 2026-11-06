@@ -212,6 +212,14 @@ test('실제 앱 계층 드롭은 공간 이동을 먼저 처리하고 전력 �
   ctx.reparent(['a'],'floor-1');assert.equal(calls,1);
 });
 
+test('계층 이동 후 재선택은 공간 진입을 중복 호출하지 않으며 일반 선택은 기존 진입을 유지한다',()=>{
+  const source=require('node:fs').readFileSync('js/app.js','utf8'),vm=require('node:vm');let enter=0,focus=0,renders=0;
+  const ctx={history:{current:{equipment:[{id:'a',floorId:'roof'}],floors:[{id:'roof'}]}},spaces:{choose(){enter++;return false;},clear(){},focusFloor(){focus++;}},links:{clear(){}},finishPropertyEdit(){},armed:null,render(){renders++;},selected:null,selectedIds:[],groupFrame:null,projectSelected:false};
+  vm.runInNewContext(source.slice(source.indexOf('  function select('),source.indexOf('  function reparent(')),ctx);
+  ctx.select('a',['a'],false,false,true);assert.equal(enter,0);assert.equal(focus,0);assert.equal(ctx.selected,'a');assert.equal(renders,1);
+  ctx.select('a',['a']);assert.equal(enter,1);assert.equal(focus,1);assert.equal(renders,2);
+});
+
 test('층 크기는 건물 폭·깊이와 층간격으로 제한하고 옥상 윗면을 건물 꼭대기에 맞춘다',()=>{
   const s=fixture(),b=s.buildings[0];
   const entries=S.slots(4,2,true,b.height).map(slot=>({...slot,size:{width:100,depth:75,height:10}}));

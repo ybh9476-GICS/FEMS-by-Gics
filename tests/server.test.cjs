@@ -7,6 +7,10 @@ test('로컬 서버는 앱 파일만 읽고 일반 경로 쓰기·외부 호스�
   function request(url,options={}){return new Promise((resolve,reject)=>{const req=http.request({hostname:'127.0.0.1',port,path:url,...options},res=>{let body='';res.on('data',c=>body+=c);res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,body}));});req.on('error',reject);req.end();});}
   try{const index=await request('/');assert.equal(index.status,200);assert.match(index.body,/FEMS by Gics/);assert.equal(index.headers['cache-control'],'no-store');
     assert.equal((await request('/js/catalog.js')).status,200);assert.equal((await request('/vendor/three.js')).status,200);
+    const helpImage=await request('/assets/help/project-actions.png');assert.equal(helpImage.status,200);assert.equal(helpImage.headers['content-type'],'image/png');assert.ok(Number(helpImage.headers['content-length'])>0);
+    const helpHead=await request('/assets/help/project-actions.png',{method:'HEAD'});assert.equal(helpHead.status,200);assert.equal(helpHead.body,'');
+    assert.equal((await request('/assets/help/unknown.png')).status,404);assert.equal((await request('/assets/help/private.txt')).status,404);
+    assert.equal((await request('/assets/help/%2e%2e/index.html')).status,403);assert.equal((await request('/assets/help/nested/image.png')).status,404);
     assert.equal((await request('/',{method:'POST'})).status,405);assert.equal((await request('/',{headers:{Host:'example.com'}})).status,403);
     assert.equal((await request('/%2e%2e/package.json')).status,403);assert.equal((await request('/.git/config')).status,403);assert.equal((await request('/package.json')).status,404);
     assert.equal((await request('/js/%5c..%5cindex.html')).status,403);assert.equal((await request('/',{method:'HEAD'})).body,'');

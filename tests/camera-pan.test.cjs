@@ -59,6 +59,18 @@ test('외부 연결 빌보드는 끝점에 투영되고 클릭·숨김·공간 �
   }}finally{context.document=original;}
 });
 
+test('층 설비 빌보드만 진입 전 숨기고 모델과 층 선택 빌보드는 유지한다',()=>{
+  for(const mode of ['3d','plan']){
+    const {scene}=fixture(mode),item=scene.state.equipment[0],model=scene.models.get(item.id);
+    Object.assign(item,{floorId:'floor',width:2,depth:2,name:'층 설비'});
+    const label={style:{},getBoundingClientRect:()=>({left:0,right:100,top:0,bottom:100})};
+    scene.labels=new Map([[item.id,label]]);scene.showLabels=true;
+    for(const scope of [null,'other']){scene.state.scopeFloorId=scope;scene.updateLabels();assert.equal(label.hidden,true);assert.equal(model.visible,true);assert.equal(scene.pickLabel({clientX:50,clientY:50}),null);}
+    scene.state.scopeFloorId='floor';scene.updateLabels();assert.equal(label.hidden,false);assert.equal(scene.pickLabel({clientX:50,clientY:50}),item.id);
+    delete item.floorId;item.floorSelector=true;scene.state.scopeFloorId=null;scene.updateLabels();assert.equal(label.hidden,false);
+  }
+});
+
 test('높은 건물과 지하층도 평면도 카메라의 표시 범위에 포함된다',()=>{
   const {scene}=fixture('plan');scene.state.equipment=[{x:0,z:0,y:-1000,height:.2},{x:0,z:0,y:1000,height:200}];scene.fit();
   for(const y of [-1000,1200]){const p=new T.Vector3(0,y,0).project(scene.camera);assert.ok(Math.abs(p.z)<=1);}

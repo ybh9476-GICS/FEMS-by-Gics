@@ -78,15 +78,15 @@ function fixture(){
   add('cross','f2',0,-3,'a');
   return M.validate(L.enableShared(state));
 }
-test('층 선택 화면의 내부 설비는 층·건물 회전과 높이를 반영하고 원본 배치를 보존한다',()=>{
+test('층 선택 화면의 내부 설비는 층·건물 회전과 높이를 반영하여 표시하고 원본 배치를 보존한다',()=>{
   const state=fixture(),before=M.clone(state),view=S.view(state,{buildingId:'building'});
   for(const e of state.equipment.filter(e=>e.floorId)){
     const frame=S.worldFrame(state,e.floorId),floor=S.get(state,e.floorId),p=S.transform(e,frame),shown=view.equipment.find(v=>v.id===e.id);
-    near(shown.x,p.x);near(shown.z,p.z);near(shown.y,frame.elevation+floor.height*.08);near(shown.rotation,(e.rotation+frame.rotation)%360);assert.equal(shown.noGizmo,true);
+    near(shown.x,p.x);near(shown.z,p.z);near(shown.y,frame.elevation+floor.height*.08);near(shown.rotation,(e.rotation+frame.rotation)%360);assert.equal(shown.noGizmo,true);assert.equal(shown.hiddenInOverview,undefined);
   }
   assert.deepEqual(view.equipment.find(e=>e.id==='out'),state.equipment.find(e=>e.id==='out'));
   assert.equal(view.equipment.filter(e=>e.floorSelector).length,2);assert.equal(view.equipment.find(e=>e.id==='building').buildingShell,true);
-  const inside=S.view(state,{floorId:'f2'});assert.ok(inside.equipment.filter(e=>!e.backdrop).every(e=>e.floorId==='f2'&&!e.noGizmo));
+  const inside=S.view(state,{floorId:'f2'});assert.ok(inside.equipment.filter(e=>!e.backdrop).every(e=>e.floorId==='f2'&&!e.noGizmo&&!e.hiddenInOverview));
   assert.equal(S.view(state).equipment.some(e=>e.id==='a'),false);assert.deepEqual(state,before);
 });
 test('층 선택 화면의 연결선은 각 층 좌표·높이로 표시하고 층간 연결과 편집 좌표를 섞지 않는다',()=>{

@@ -80,7 +80,7 @@ test('건물·층 진입은 각도 유지 확대를 요청하며 건물 복귀�
   ui.choose('floor',{billboard:true});assert.equal(options.at(-1).preserveAngle,true);assert.equal(options.at(-1).zoomInOnly,true);
   ui.choose('floor');assert.equal(options.at(-1).preserveAngle,true);assert.equal(options.at(-1).zoomInOnly,true);
   ui.back();assert.equal(options.at(-1).preserveAngle,true);assert.equal(options.at(-1).zoomInOnly,false);
-  ui.back();assert.equal(options.at(-1),undefined);
+  const fitsBeforeSite=options.length;ui.back();assert.equal(options.length,fitsBeforeSite);
   delete state.floors[0].buildingId;ui.choose('floor',{billboard:true});assert.equal(options.at(-1).preserveAngle,true);assert.equal(options.at(-1).zoomInOnly,true);
 });
 
@@ -114,14 +114,39 @@ test('건물에 연결되지 않은 층은 뒤로가기로 대지에 복귀한�
   ui.choose('floor',{billboard:true});assert.equal(ui.context.floorId,'floor');ui.back();assert.equal(ui.context.floorId,undefined);assert.equal(ui.selected,null);
 });
 
-test('층 모델·목록·다른 층 설비 선택은 진입하지 않고 빌보드만 층으로 진입한다',()=>{
+test('대지 직접 선택과 뒤로가기 복귀는 카메라 맞춤을 호출하지 않는다',()=>{
+  const {ui,state,counts}=fixture();state.floors.push({id:'floor',buildingId:'building',name:'1F',x:0,z:0,rotation:0,width:20,depth:16,height:.2,elevation:0});
+  const before=M.clone(state);
+  for(const start of [{buildingId:'building'},{buildingId:'building',floorId:'floor'},{floorId:'floor'}]){
+    ui.context={...start};const fits=counts().fit;ui.choose('@site');assert.equal(counts().fit,fits);assert.equal(Object.keys(ui.context).length,0);
+  }
+  for(const start of [{buildingId:'building'},{floorId:'floor'}]){
+    ui.context={...start};const fits=counts().fit;ui.back();assert.equal(counts().fit,fits);assert.equal(Object.keys(ui.context).length,0);
+  }
+  assert.deepEqual(state,before);
+});
+
+test('층 목록과 빌보드 선택은 동일하게 내부로 진입한다',()=>{
   const {ui,state}=fixture();state.floors.push({id:'floor',buildingId:'building',name:'1F',x:0,z:0,rotation:0,width:20,depth:16,height:.2,elevation:0});
-  const before=M.clone(state);ui.context={};ui.choose('floor');assert.equal(ui.selected,'floor');assert.equal(ui.context.floorId,undefined);assert.equal(ui.context.buildingId,'building');
-  ui.enter('floor');assert.equal(ui.context.floorId,undefined);
+  const before=M.clone(state);ui.context={};ui.choose('floor');assert.equal(ui.selected,'floor');assert.equal(ui.context.floorId,'floor');assert.equal(ui.context.buildingId,'building');
+  ui.enter('floor');assert.equal(ui.context.floorId,'floor');
   ui.choose('floor',{billboard:true});assert.equal(ui.context.floorId,'floor');
   ui.choose('floor');assert.equal(ui.context.floorId,'floor');
-  ui.back();ui.focusFloor('floor');assert.equal(ui.context.floorId,undefined);assert.equal(ui.context.buildingId,'building');
+  ui.back();ui.focusFloor('floor');assert.equal(ui.context.floorId,'floor');assert.equal(ui.context.buildingId,'building');
   ui.focusFloor(null);assert.equal(ui.context.buildingId,undefined);assert.deepEqual(state,before);
+});
+
+test('층 설비 선택은 소속 층을 열고 같은 층 재선택은 카메라를 유지한다',()=>{
+  const {ui,state}=fixture(),fits=[];ui.api.fit=value=>fits.push(value);
+  state.floors.push({id:'floor',buildingId:'building',name:'1F',x:0,z:0,rotation:0,width:20,depth:16,height:.2,elevation:0});
+  const item={...M.create('panel',state),floorId:'floor'};state.equipment.push(item);const before=M.clone(state);
+  for(const start of [{},{buildingId:'building'},{floorId:'other'}]){
+    ui.context=start;const count=fits.length;assert.equal(ui.choose(item.id),false);assert.equal(ui.context.floorId,'floor');
+    assert.equal(fits.length,count+1);assert.equal(fits.at(-1).preserveAngle,true);assert.equal(fits.at(-1).zoomInOnly,true);
+    assert.equal(ui.display(state).equipment.find(e=>e.id===item.id).hiddenInOverview,undefined);
+    ui.choose(item.id);assert.equal(fits.length,count+1);
+  }
+  assert.deepEqual(state,before);
 });
 
 test('미등록 건물 선택과 층 등록 취소 후에도 건물 외형이 표시된다',()=>{
@@ -261,7 +286,7 @@ test('다른 층 설비 하위 이동은 내부 연결선·저장을 보존하�
   assert.equal(movedChild.parentId,compressor.id);assert.equal(movedChild.x-moved.x,3);assert.equal(movedChild.z-moved.z,4);
   for(const key of ['width','depth','height','rotation'])assert.equal(moved[key],compressor[key]);
   assert.deepEqual(state.equipment.find(e=>e.id===remote.id),before.equipment.find(e=>e.id===remote.id));
-  assert.equal(ui.context.floorId,undefined);assert.equal(ui.context.buildingId,fourth.buildingId);assert.deepEqual(Array.from(selection),[compressor.id]);
+  assert.equal(ui.context.floorId,fourth.id);assert.equal(ui.context.buildingId,fourth.buildingId);assert.deepEqual(Array.from(selection),[compressor.id]);
   assert.equal(ui.membershipText(selection),'생산동 > 4F');assert.ok(state.networks.length);assert.doesNotThrow(()=>M.validate(state));
   const spatialOnly=S.moveEquipment(before,[compressor.id,child.id],fourth.id,true);
   for(const id of [compressor.id,child.id])assert.deepEqual(state.networks.find(n=>n.parentId===id),spatialOnly.networks.find(n=>n.parentId===id));
@@ -289,6 +314,21 @@ test('설비 대상 다중 드롭은 같은 층의 좌표·순서를 유지하�
   ui.reparent([a.id,b.id],outdoor.id);
   assert.ok(state.equipment.filter(e=>[a.id,b.id].includes(e.id)).every(e=>!e.floorId&&e.parentId===outdoor.id));
   assert.equal(ui.context.floorId,undefined);assert.equal(ui.membershipText([a.id,b.id]),'대지');
+});
+
+test('같은 공간 계층 이동은 구도를 유지하고 공간 이동만 각도를 보존해 맞춘다',()=>{
+  for(const context of [{},{buildingId:'building'},{buildingId:'building',floorId:'floor'}]){
+    const {ui,state}=fixture();state.floors=[{id:'floor',buildingId:'building',name:'1F',level:'1F',x:0,z:0,rotation:0,width:20,depth:16,height:.2,elevation:0}];
+    const floorId=context.floorId||null;
+    const a={...M.create('ups',state,2,3),id:'a',...(floorId?{floorId}:{})},b={...M.create('panel',state),id:'b',...(floorId?{floorId}:{})};state.equipment.push(a,b);
+    ui.context={...context};const beforeContext=JSON.stringify(context),fits=[];
+    ui.api.fit=options=>fits.push(options);ui.api.commit=next=>{Object.assign(state,M.validate(next));return true;};
+    ui.api.selectEquipment=(id,ids,options)=>assert.equal(options.preserveSpace,true);
+    ui.reparent(a.id,b.id);assert.equal(fits.length,0);assert.equal(JSON.stringify(ui.context),beforeContext);
+    assert.equal(state.equipment.find(e=>e.id===a.id).x,2);assert.equal(state.equipment.find(e=>e.id===a.id).z,3);
+    const destination=floorId?null:'floor';ui.reparent(a.id,destination);
+    assert.equal(fits.length,1);assert.equal(fits[0].preserveAngle,true);assert.equal(ui.context.floorId,destination||undefined);
+  }
 });
 
 test('층을 건물에 드롭하면 슬롯 지정 후 기존 층 ID와 내부 설비를 유지하고 취소 시 원본을 보존한다',()=>{

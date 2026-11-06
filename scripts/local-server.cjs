@@ -14,6 +14,7 @@ const mime = {
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
   '.glb': 'model/gltf-binary'
 };
 
@@ -65,7 +66,7 @@ function createServer(root = projectRoot) {
           }
           let contents;
           try { const state=require('../js/model.js').validate(JSON.parse(Buffer.concat(chunks).toString('utf8')));await assetStore.verifyProject(await readyRoot,state);contents = defaults.serialize(state); }
-          catch { return reply(400, 'Invalid FEMS drawing.'); }
+          catch(error) { return reply(400, '저장 오류: '+(error.code==='ENOENT'?'추가 에셋 파일을 찾을 수 없습니다. 에셋을 다시 등록하세요.':error.code?'추가 에셋 파일을 읽을 수 없습니다. 파일 권한을 확인하세요.':error.message)); }
           const base = await readyRoot;
           const directory = path.join(base, 'js');
           const target = path.join(directory, 'default-layout.js');
@@ -75,8 +76,10 @@ function createServer(root = projectRoot) {
           await fs.rename(temporary, target);
           temporary = null;
           return reply(200, 'Saved js/default-layout.js');
-        } catch {
-          return reply(500, 'Could not save the default drawing.');
+        } catch(error) {
+          console.error('Default project save failed:',error);
+          const reason={ENOENT:'기본 프로젝트 파일 또는 저장 폴더가 없습니다.',EACCES:'기본 프로젝트 파일의 쓰기 권한이 없습니다.',EPERM:'기본 프로젝트 파일을 변경할 권한이 없거나 파일이 사용 중입니다.',ENOSPC:'저장 공간이 부족합니다.'}[error.code]||'파일 쓰기에 실패했습니다. 로컬 서버 로그를 확인하세요.';
+          return reply(500, '저장 오류: '+reason);
         } finally {
           if (temporary) await fs.unlink(temporary).catch(() => {});
           savingDefault = false;
@@ -94,6 +97,7 @@ function createServer(root = projectRoot) {
       const parts = pathname.split('/');
       if (parts.some(part => part.startsWith('.') || /[\\:\0]/.test(part))) return reply(403, 'Forbidden path.');
       if (pathname !== '/index.html' && !/^\/(js|css|data|vendor)\/.+\.(js|css|json)$/.test(pathname) &&
+        !/^\/assets\/help\/[a-z0-9-]+\.png$/.test(pathname) &&
         pathname!=='/assets/equipment/index.json'&&!/^\/assets\/equipment\/asset-[a-z0-9][a-z0-9-]{0,63}\/model\.glb$/.test(pathname)) return reply(404, 'Not found.');
       const base = await readyRoot;
       const file = await fs.realpath(path.resolve(base, '.' + pathname));

@@ -5,10 +5,11 @@
     constructor(host, labels, handlers, rotateButton = null) {
       this.host=host;this.labelHost=labels;this.handlers=handlers;this.models=new Map();this.labels=new Map();this.footprints=new Map();
       this.selected=null;this.mode='3d';this.armed=null;this.move=false;this.showLabels=true;this.radius=48;this.yaw=.6;this.planYaw=0;this.pitch=.77;this.target=new T.Vector3(0,0,0);
-      this.renderer=new T.WebGLRenderer({antialias:true,alpha:false});this.renderer.setPixelRatio(Math.min(root.devicePixelRatio||1,2));this.renderer.setClearColor('#eef2f3');
+      this.renderer=new T.WebGLRenderer({antialias:true,alpha:false,stencil:true});this.renderer.setPixelRatio(Math.min(root.devicePixelRatio||1,2));this.renderer.setClearColor('#eef2f3');
       this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=T.PCFShadowMap;this.renderer.outputColorSpace=T.SRGBColorSpace;host.appendChild(this.renderer.domElement);
       this.scene=new T.Scene();this.scene.add(new T.HemisphereLight('#faffff','#839d96',2.7));
       const sun=new T.DirectionalLight('#fff6e7',3);sun.position.set(-20,35,20);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-38;sun.shadow.camera.right=38;sun.shadow.camera.top=32;sun.shadow.camera.bottom=-32;sun.shadow.normalBias=.06;this.scene.add(sun);
+      this.floorShadows=new root.FEMSFloorShadows(this.scene,sun);
       this.perspective=new T.PerspectiveCamera(38,1,.1,600);this.ortho=new T.OrthographicCamera(-30,30,20,-20,.1,600);this.camera=this.perspective;
       this.ray=new T.Raycaster();this.floorPlane=new T.Plane(new T.Vector3(0,1,0),0);this.pointer=new T.Vector2();
       this.selection=new T.Box3Helper(new T.Box3(), '#32826a');this.selection.visible=false;this.scene.add(this.selection);
@@ -26,7 +27,7 @@
       // GLB instances share cached materials: clone only the display overrides, never mutate the asset.
       const opaqueFloor=!!(item&&(item.type==='space-floor'||this.state?.floors?.some(f=>f.id===item.id)));
       model.traverse(part=>{if(!part.material)return;
-        if(item?.buildingShell||item?.floorSelector){if(part.userData.spatialShadow===undefined)part.userData.spatialShadow=part.castShadow;part.castShadow=false;}
+        if(item?.buildingShell||item?.floorSelector||(item?.floorId&&!this.state?.scopeFloorId)){if(part.userData.spatialShadow===undefined)part.userData.spatialShadow=part.castShadow;part.castShadow=false;}
         else if(part.userData.spatialShadow!==undefined){part.castShadow=part.userData.spatialShadow;delete part.userData.spatialShadow;}
         const faded=item?.preview||item?.backdrop||item?.floorSelector;
         if((opaqueFloor||faded)&&!part.userData.spatialOriginal){part.userData.spatialOriginal=part.material;part.material=Array.isArray(part.material)?part.material.map(m=>m.clone()):part.material.clone();}
@@ -54,15 +55,17 @@
       for(const [id,model] of this.models)if(!active.has(id)||assetKey(state.equipment.find(item=>item.id===id))!==model.userData.assetKey) {this.styleSpatial(model,null);this.scene.remove(model);root.FEMSEquipment.dispose(model);this.models.delete(id);this.labels.get(id).remove();this.labels.delete(id);const footprint=this.footprints.get(id);this.scene.remove(footprint);root.FEMSEquipment.dispose(footprint);this.footprints.delete(id);}
       for(const item of state.equipment){
         let model=this.models.get(item.id);
-        if(!model){model=root.FEMSEquipment.make(item.type,loaded=>{if(this.models.get(item.id)!==loaded)return;loaded.traverse(part=>part.userData.equipmentId=item.id);this.styleSpatial(loaded,this.state.equipment.find(e=>e.id===item.id));this.labels.get(item.id).title=loaded.userData.assetError||'';this.updateSelection();this.invalidate();},item);model.userData.equipmentType=item.type;model.userData.assetKey=assetKey(item);model.traverse(part=>part.userData.equipmentId=item.id);this.models.set(item.id,model);this.scene.add(model);
+        if(!model){model=root.FEMSEquipment.make(item.type,loaded=>{if(this.models.get(item.id)!==loaded)return;loaded.traverse(part=>part.userData.equipmentId=item.id);this.styleSpatial(loaded,this.state.equipment.find(e=>e.id===item.id));this.floorShadows.sync(this.state,this.models);this.labels.get(item.id).title=loaded.userData.assetError||'';this.updateSelection();this.invalidate();},item);model.userData.equipmentType=item.type;model.userData.assetKey=assetKey(item);model.traverse(part=>part.userData.equipmentId=item.id);this.models.set(item.id,model);this.scene.add(model);
           const label=document.createElement('span');label.className='object-label';this.labelHost.appendChild(label);this.labels.set(item.id,label);
           const footprint=new T.Mesh(new T.BoxGeometry(1,.025,1),new T.MeshBasicMaterial({color:root.FEMSCatalog.get(item.type).color}));footprint.userData.equipmentId=item.id;this.footprints.set(item.id,footprint);this.scene.add(footprint);}
         model.scale.set(item.width,item.height,item.depth);model.position.set(item.x,item.y||0,item.z);model.rotation.y=item.rotation*Math.PI/180;model.visible=this.mode==='3d';
         this.styleSpatial(model,item);
         const footprint=this.footprints.get(item.id);footprint.scale.set(item.width,1,item.depth);footprint.position.set(item.x,(item.y||0)+.01,item.z);footprint.rotation.y=model.rotation.y;footprint.visible=this.mode==='plan';footprint.material.color.set(selectedIds.includes(item.id)?'#37886d':root.FEMSCatalog.get(item.type).color);
         footprint.material.transparent=!!item.backdrop||!!item.preview||!!item.floorSelector;footprint.material.opacity=item.buildingShell?.06:item.backdrop||item.floorSelector?.12:item.preview?.5:1;footprint.material.depthWrite=!item.backdrop&&!item.floorSelector;
-        const label=this.labels.get(item.id);label.className='object-label'+(selectedIds.includes(item.id)?' selected':'')+(warnings.has(item.id)?' warning':'');
+        const label=this.labels.get(item.id),labelKind=state.buildings?.some(b=>b.id===item.id)?' building-label':state.floors?.some(f=>f.id===item.id)?' floor-label':'';
+        label.className='object-label'+labelKind+(selectedIds.includes(item.id)?' selected':'')+(warnings.has(item.id)?' warning':'');
       }
+      this.floorShadows.sync(state,this.models);
       this.previewGroup=state.equipment.some(e=>e.preview);this.connections?.setState(state);this.syncPortalLabels();this.updateSelection();this.updateCursor();this.invalidate();
     }
     syncPortalLabels(){
@@ -192,7 +195,7 @@
       // Reverse DOM order matches the label painted on top when labels overlap.
       for(const [id,label] of Array.from(this.labels||[]).reverse()){
         const item=this.state.equipment.find(e=>e.id===id);
-        if(label.hidden||item?.backdrop||(!this.showLabels&&!item?.floorSelector&&!this.state.floors?.some(f=>f.id===id)))continue;
+        if(label.hidden||item?.backdrop||(item?.floorId&&this.state.scopeFloorId!==item.floorId)||(!this.showLabels&&!item?.floorSelector&&!this.state.floors?.some(f=>f.id===id)))continue;
         const r=label.getBoundingClientRect();
         if(event.clientX>=r.left&&event.clientX<=r.right&&event.clientY>=r.top&&event.clientY<=r.bottom)return id;
       }
@@ -297,7 +300,7 @@
       canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();this.handlers.error('3D 그래픽 연결이 중단되었습니다. 도면을 저장한 뒤 브라우저를 새로고침하세요. 설비 목록에서 편집·저장할 수 있습니다.');});
       canvas.addEventListener('webglcontextrestored',()=>this.handlers.error('그래픽 연결이 복구되었습니다. 저장 후 새로고침하여 화면을 다시 열어 주세요.'));
     }
-    invalidate(){if(this.pending)return;this.pending=true;requestAnimationFrame(()=>{this.pending=false;if(!this.host.clientHeight||!this.host.clientWidth||root.document?.hidden)return;this.updateGizmo();this.updateHoverVisual();this.connections?.update(this.camera,this.height,this.mode,this.armed,this.connectionSelection,this.drag?null:this.hoverLink,{guides:this.connectionGuides,corner:this.cornerMode,site:this.state?.site});this.renderer.render(this.scene,this.camera);this.updateLabels();this.gizmo?.updateLabels(this.camera,this.width,this.height);this.connectionGizmo?.updateLabels(this.camera,this.width,this.height);if(this.connections?.active)this.invalidate();});}
+    invalidate(){if(this.pending)return;this.pending=true;requestAnimationFrame(()=>{this.pending=false;if(!this.host.clientHeight||!this.host.clientWidth||root.document?.hidden)return;this.updateGizmo();this.updateHoverVisual();this.connections?.update(this.camera,this.height,this.mode,this.armed,this.connectionSelection,this.drag?null:this.hoverLink,{guides:this.connectionGuides,corner:this.cornerMode,site:this.state?.site});this.floorShadows.update(this.mode);this.renderer.render(this.scene,this.camera);this.updateLabels();this.gizmo?.updateLabels(this.camera,this.width,this.height);this.connectionGizmo?.updateLabels(this.camera,this.width,this.height);if(this.connections?.active)this.invalidate();});}
     updateLabels(){
       if(!this.state)return;
       const v=new T.Vector3(),corner=new T.Vector3(),floorLabels=[];
@@ -322,7 +325,7 @@
         }
         const label=this.labels.get(item.id),text=item.name;
         if(label.textContent!==text)label.textContent=text;
-        label.hidden=!!item.backdrop||(!this.showLabels&&!item.floorSelector&&!this.state.floors?.some(f=>f.id===item.id))||v.z>1||v.z< -1||Math.abs(v.x)>1.1||Math.abs(v.y)>1.1;
+        label.hidden=!!item.backdrop||!!(item.floorId&&this.state.scopeFloorId!==item.floorId)||(!this.showLabels&&!item.floorSelector&&!this.state.floors?.some(f=>f.id===item.id))||v.z>1||v.z< -1||Math.abs(v.x)>1.1||Math.abs(v.y)>1.1;
         label.style.left=((v.x+1)/2*this.width)+'px';
         label.style.top=((-v.y+1)/2*this.height-(this.mode==='plan'?4:0))+'px';
         if(item.floorSelector&&!label.hidden)floorLabels.push({label,y:parseFloat(label.style.top),elevation:item.y||0});
