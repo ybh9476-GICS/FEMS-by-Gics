@@ -185,3 +185,67 @@ test('외부 경로 기즈모는 XYZ 축으로 움직이고 평면도에서 숨�
  }
  gizmo.axes.get('y').arrow.visible=false;gizmo.updateLabels(camera,900,700);assert.equal(gizmo.axes.get('y').label.hidden,true);
 });
+
+
+test('다중 선택 기즈모는 공통 중심과 층 바닥 높이에 표시되고 회전 후 기준점을 유지한다',()=>{
+ const {scene}=sceneFixture();scene.selected=null;scene.selectedIds=scene.state.equipment.slice(0,2).map(e=>e.id);
+ const bounds=M.groupBounds(scene.state,scene.selectedIds);scene.groupPivot=bounds;scene.height=700;
+ context.FEMSScene.prototype.updateGizmo.call(scene);
+ assert.equal(scene.gizmo.group.visible,true);assert.deepEqual(Array.from(scene.gizmo.group.position.toArray()),[bounds.x,0,bounds.z]);
+ scene.state={...scene.state,equipment:scene.state.equipment.map(e=>({...e,y:.08}))};
+ scene.groupPivot={x:3,z:2};context.FEMSScene.prototype.updateGizmo.call(scene);assert.deepEqual(Array.from(scene.gizmo.group.position.toArray()),[3,.08,2]);
+ scene.armed='panel';context.FEMSScene.prototype.updateGizmo.call(scene);assert.equal(scene.gizmo.group.visible,false);
+ scene.armed=null;scene.selectedIds=[];context.FEMSScene.prototype.updateGizmo.call(scene);assert.equal(scene.gizmo.group.visible,false);
+});
+
+test('그룹 기즈모는 모든 회전 외곽을 기준으로 이동 범위를 제한하며 축 밖 좌표를 보존한다',()=>{
+ for(const plan of [true,false]){
+ const {gizmo,camera,rayAt}=setup(.6,.77,plan),scene=Object.create(context.FEMSScene.prototype);
+ scene.state=M.demo();scene.selectedIds=scene.state.equipment.slice(0,2).map(e=>e.id);scene.groupPivot={x:-12,z:-6};
+ scene.state.equipment[0].rotation=37;const item=scene.transformItem();gizmo.update(item,item,camera,700,true);
+ for(const axis of ['x','z','xz']){
+ const start=gizmo.planeHandle.getWorldPosition(new T.Vector3()),drag=gizmo.begin(axis,rayAt(start).ray,camera,item);
+ const end=start.clone().add(new T.Vector3(axis==='z'?0:100,0,axis==='x'?0:-100));const ray=new T.Ray(end.clone().addScaledVector(drag.plane.normal,100),drag.plane.normal.clone().negate());const pos=gizmo.positionFor(drag,ray,scene.state.site);
+ for(const key of ['x','z'])if(axis==='xz'||axis===key)assert.ok(pos[key]>=item.moveLimits[key].min-1e-8&&pos[key]<=item.moveLimits[key].max+1e-8);else assert.equal(pos[key],item[key]);
+ }
+ }
+});
+
+test('실제 그룹 기즈모 이벤트와 앱 편집은 상대 배치 보존·한 번의 undo·취소 복원을 지원한다',()=>{
+ const source=fs.readFileSync(path.join(__dirname,'../js/app.js'),'utf8');
+ const handlers=source.slice(source.indexOf('  function startGizmo()'),source.indexOf("  $('gizmo-rotate').addEventListener"));
+ for(const plan of [false,true])for(const axis of ['x','z','xz'])for(const action of ['commit','cancelDrag','pointercancel','lostpointercapture','click']){
+ const {scene,h,listeners}=sceneFixture(plan),before=M.clone(h.current);scene.selected=null;scene.selectedIds=h.current.equipment.slice(0,2).map(e=>e.id);scene.height=700;
+ const ctx={M,history:h,spaces:null,selected:null,selectedIds:scene.selectedIds,groupFrame:M.groupBounds(h.current,scene.selectedIds),groupGizmoEdit:null,
+ finishPropertyEdit(){},currentGroup(){return M.groupBounds(h.current,scene.selectedIds,ctx.groupFrame);},syncGroup(){},saveLocal(){},toast(){},$:()=>({}),render(){scene.state=h.current;scene.groupPivot=ctx.groupFrame;}};
+ vm.createContext(ctx);vm.runInContext(handlers,ctx);Object.assign(scene.handlers,{gizmoStart:ctx.startGizmo,gizmoPreview:ctx.previewGizmo,gizmoEnd:ctx.finishGizmo});
+ scene.groupPivot=ctx.groupFrame;context.FEMSScene.prototype.updateGizmo.call(scene);
+ const start=axis==='xz'?scene.gizmo.planeHandle.getWorldPosition(new T.Vector3()):scene.gizmo.axes.get(axis).direction.clone().multiplyScalar(.75).applyMatrix4(scene.gizmo.group.matrixWorld);
+ listeners.pointerdown({button:0,pointerId:1,clientX:100,clientY:100,world:start});assert.equal(scene.drag.id,'@selection');
+ if(action!=='click')listeners.pointermove({pointerId:1,clientX:130,clientY:120,world:start.clone().add(new T.Vector3(axis==='z'?0:2,0,axis==='x'?0:3))});
+ if(action==='commit'||action==='click')listeners.pointerup({button:0,pointerId:1});else if(action==='cancelDrag')scene.cancelDrag();else listeners[action]();
+ if(action==='commit'){
+ for(let i=0;i<2;i++){assert.ok(Math.abs(h.current.equipment[i].x-before.equipment[i].x-(axis==='z'?0:2))<1e-8);assert.ok(Math.abs(h.current.equipment[i].z-before.equipment[i].z-(axis==='x'?0:3))<1e-8);}
+ assert.deepEqual(h.current.equipment.slice(2),before.equipment.slice(2));assert.equal(h.past.length,1);h.undo();assert.deepEqual(h.current,before);
+ }else{assert.deepEqual(h.current,before);assert.equal(h.past.length,0);assert.equal(ctx.groupFrame.x,M.groupBounds(before,scene.selectedIds).x);}
+ assert.equal(ctx.groupGizmoEdit,null);
+ }
+});
+
+test('회전 원호와 버튼은 카메라 각도·확대·평면도에서도 기즈모 영역 안에 머문다',()=>{
+ for(const plan of [false,true])for(const yaw of [-2,-1.2,0,.6,1.5,3])for(const pitch of [.15,.77,1.5])for(const zoom of [.5,1,3]){
+  const {gizmo,camera,item}=setup(yaw,pitch,plan);camera.zoom=zoom;camera.updateProjectionMatrix();gizmo.update(item,new T.Vector3(item.x,0,item.z),camera,700,true);
+  const a=gizmo.rotationLayout(camera,900,700),b=a.bounds;
+  assert.ok(a.center.x-a.buttonWidth/2>=b.left-1e-7);assert.ok(a.center.x+a.buttonWidth/2<=b.right+1e-7);
+  assert.ok(a.center.y-a.buttonHeight/2>=b.top-1e-7);assert.ok(a.center.y+a.buttonHeight/2<=b.bottom+1e-7);
+  assert.ok(!a.path.includes('NaN'));assert.ok(!a.arrow.includes('NaN'));
+  gizmo.updateLabels(camera,900,700);assert.equal(gizmo.rotateButton.hidden,!a.visible);
+ }
+});
+
+test('회전 원호 클릭은 기존 회전 버튼을 사용하고 이동 중 비활성 상태를 존중한다',()=>{
+ const listeners={},arc={addEventListener:(name,fn)=>listeners[name]=fn},button={style:{},disabled:false,parentElement:{querySelector:()=>arc},click(){this.clicks=(this.clicks||0)+1;}};
+ const labels={ownerDocument:{createElement:()=>({style:{},dataset:{}})},appendChild(){}};
+ new context.FEMSTransformGizmo(new T.Scene(),labels,button);
+ listeners.click();assert.equal(button.clicks,1);button.disabled=true;listeners.click();assert.equal(button.clicks,1);
+});

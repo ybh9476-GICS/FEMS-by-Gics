@@ -66,6 +66,7 @@
       localStorage.setItem(key,raw);localStorage.setItem(M.STORAGE_KEY,JSON.stringify(upgraded));history.current=upgraded;
     }catch(error){autosaveAllowed=false;startupMessage='전력 연결 구조 변환을 완료하지 못해 원본을 유지합니다. 자동 저장을 중지했습니다. '+error.message;}
   }
+  let groupGizmoEdit=null;
   let propertyEdit = null,groupFrame=null,groupRatioLock=null,nameDraft=null,projectSelected=false,projectNameDraft=false;
   function cancelProjectNameEdit(){
     if(!projectNameDraft)return;projectNameDraft=false;
@@ -223,6 +224,9 @@
     if(!state.equipment.some(e=>e.id===selected))selected=null;
     selectedIds=selected?[selected]:selectedIds.filter(id=>state.equipment.some(e=>e.id===id));if(selectedIds.length===1)selected=selectedIds[0];
     const warnings=M.overlaps(state),display=spaces?spaces.display(state):state;
+    const alignItems=state.equipment.filter(e=>selectedIds.includes(e.id));
+    const canAlign=view!=='schematic'&&!spaces?.selected&&alignItems.length>1&&alignItems.every(e=>(e.floorId||null)===(alignItems[0].floorId||null));
+    for(const direction of ['horizontal','vertical'])$('align-'+direction).disabled=!canAlign;
     $('grid-size').textContent=view==='schematic'?'연결 관계':M.siteGridStep(display.site)+' m 그리드';$('equipment-count').textContent=state.equipment.length;
     $('site-size').textContent=state.site.width+' × '+state.site.depth+' m';
     $('empty-state').hidden=display.equipment.length>0||!!armed;
@@ -231,17 +235,41 @@
     if(!preserveInputs)renderInspector();
     if(tree){tree.projectSelected=projectSelected;tree.render(S?S.treeState(state):state,spaces?.selected||selected,false,spaces?.selected?[spaces.selected]:selectedIds);}
     links?.render(view);spaces?.render(preserveInputs);
-    if(scene&&view!=='schematic'){scene.connectionSelection=links?.selection;scene.setState(display,spaces?.selected||selected,warnings,spaces?.selected?[spaces.selected]:selectedIds.filter(id=>display.equipment.some(e=>e.id===id)));}
+    if(scene&&view!=='schematic'){scene.groupPivot=!spaces?.selected&&selectedIds.length>1?currentGroup():null;scene.connectionSelection=links?.selection;scene.setState(display,spaces?.selected||selected,warnings,spaces?.selected?[spaces.selected]:selectedIds.filter(id=>display.equipment.some(e=>e.id===id)));}
     schematic?.setState(state,selected);
   }
   function setView(next){if(next===view)return;finishPropertyEdit();spaces?.finish();if(scene?.drag)scene.cancelDrag();links?.clear();arm(null);view=next;document.querySelector('.editor').classList.toggle('schematic-mode',view==='schematic');for(const key of ['3d','plan','schematic'])$('view-'+key).setAttribute('aria-selected',String(key===view));if(scene)scene.connectionSelection=null;render();schematic?.setActive(view==='schematic');if(view!=='schematic'){if(scene?.mode!==view)scene?.setMode(view);else scene?.resize();$('scene').setAttribute('aria-label',view==='plan'?'평면 설비 배치도':'3D 설비 배치도');}}
+  function alignSelection(direction){
+    if(view==='schematic'||spaces?.selected||selectedIds.length<2)return;
+    finishPropertyEdit();spaces?.finish();links?.clear();
+    try{const next=M.alignEquipment(history.current,selectedIds,direction);groupFrame=null;commit(next,direction==='horizontal'?'수평으로 정렬했습니다.':'수직으로 정렬했습니다.');}catch(error){toast(error.message);}
+  }
+  function selectInScene(id,event,billboard=false){
+    if(id&&(event?.ctrlKey||event?.metaKey)&&history.current.equipment.some(e=>e.id===id)){
+      const ids=selectedIds.includes(id)?selectedIds.filter(key=>key!==id):[...selectedIds,id];
+      select(id,ids,false,false);
+    }else select(id,undefined,false,billboard);
+  }
   function fitView(){if(view==='schematic')schematic?.fit();else scene?.fit();}
   function travel(direction){if(spaces?.draft){toast('층 등록을 완료하거나 취소하세요.');return;}spaces?.finish();if(scene?.drag?.connection)scene.cancelDrag();links?.clear();if(history[direction]()){history.current=M.validate(window.FEMSConnections.upgradePower(history.current));projectSelected=false;selected=null;selectedIds=[];groupFrame=null;arm(null);saveLocal();render();toast(direction==='undo'?'실행을 취소했습니다.':'다시 실행했습니다.');}}
   function rotate(){if(spaces?.rotate())return;finishPropertyEdit();if(selectedIds.length>1){try{const frame=currentGroup(),result=M.transformGroup(history.current,selectedIds,frame,'rotation',(frame.rotation+90)%360);groupFrame=result.frame;commit(result.state,'선택한 설비를 중심점 기준으로 90° 회전했습니다.');}catch(error){$('property-error').textContent=error.message;}return;}const item=history.current.equipment.find(e=>e.id===selected);if(item)changeSelected({rotation:(item.rotation+90)%360},'90° 회전했습니다.');}
   function remove(){if(spaces?.selected){spaces.remove();return;}if(links?.selection){links.remove();return;}finishPropertyEdit();if(selectedIds.length>1){try{const count=selectedIds.length;commit(M.removeEquipmentGroup(history.current,selectedIds),count+'개 설비를 삭제했습니다. 실행 취소로 복원할 수 있습니다.');groupFrame=null;}catch(error){$('property-error').textContent=error.message;}return;}if(!selected)return;const hasChildren=history.current.equipment.some(e=>e.parentId===selected);commit(M.removeEquipment(history.current,selected),hasChildren?'설비를 삭제하고 하위 설비는 한 단계 위로 옮겼습니다. 실행 취소할 수 있습니다.':'설비를 삭제했습니다. 실행 취소로 복원할 수 있습니다.');}
   function duplicate(){const item=history.current.equipment.find(e=>e.id===selected);if(!item)return;try{const next=M.clone(history.current),copy=M.create(item.type,next);const id=copy.id,code=copy.code,name=M.duplicateName(next,item.name);Object.assign(copy,item,{id,code,name});Object.assign(copy,M.clampPosition(copy,item.x+item.width+1,item.z,next.floors?.find(f=>f.id===item.floorId)||next.site));next.equipment.push(copy);selected=copy.id;commit(next,'설비를 복제했습니다. 위치와 겹침을 확인하세요.');}catch(error){toast(error.message);}}
   function graphicsError(message){$('graphics-error').textContent=message;$('graphics-error').hidden=false;}
+  function startGizmo(){
+    finishPropertyEdit();spaces?.finish();
+    groupGizmoEdit=!spaces?.selected&&selectedIds.length>1?{state:M.clone(history.current),ids:[...selectedIds],frame:{...currentGroup()}}:null;
+  }
   function previewGizmo(id, pos) {
+    if(id==='@selection'&&groupGizmoEdit){
+      const edit=groupGizmoEdit;
+      try{
+        const movedX=M.transformGroup(edit.state,edit.ids,edit.frame,'x',pos.x);
+        const result=M.transformGroup(movedX.state,edit.ids,movedX.frame,'z',pos.z);
+        if(history.preview(result.state)){groupFrame=result.frame;syncGroup();saveLocal();render(true);}
+      }catch(error){$('property-error').textContent=error.message;}
+      return;
+    }
     if(spaces?.gizmo(id,pos))return;
     const next=M.clone(history.current), item=next.equipment.find(e=>e.id===id);
     if(!item)return;
@@ -254,6 +282,13 @@
     }catch(error){$('property-error').textContent=error.message;}
   }
   function finishGizmo(commit) {
+    if(groupGizmoEdit){
+      const edit=groupGizmoEdit;groupGizmoEdit=null;
+      const changed=history.finishEdit(commit);if(!commit)groupFrame=edit.frame;
+      syncGroup();if(changed)saveLocal();render(true);
+      if(changed)toast(commit?'선택한 설비를 함께 이동했습니다.':'설비 이동을 취소했습니다.');
+      return;
+    }
     if(spaces?.selected){const changed=history.finishEdit(commit);if(changed)saveLocal();render();return;}
     const changed=history.finishEdit(commit);
     const item=history.current.equipment.find(e=>e.id===selected);
@@ -263,11 +298,12 @@
     if(changed)toast(commit?'설비 위치를 변경했습니다.':'설비 이동을 취소했습니다.');
   }
   $('gizmo-rotate').addEventListener('click',rotate);
-  try{scene=new window.FEMSScene($('scene'),$('labels'),{select,navigateEquipment:id=>{const target=history.current.equipment.find(e=>e.id===id),floor=history.current.floors?.find(f=>f.id===target?.floorId);if(!target)return;if(spaces)spaces.context=floor?{floorId:floor.id,buildingId:floor.buildingId}:{};select(id);scene?.fit();const item=scene?.state?.equipment.find(e=>e.id===id);if(item){scene.target.set(item.x,(item.y||0)+item.height/2,item.z);scene.updateCamera();}},selectLabel:id=>select(id,undefined,false,true),place:add,move:(id,pos)=>{selected=id;changeSelected(pos,'설비 위치를 변경했습니다.');},gizmoStart:()=>{finishPropertyEdit();spaces?.finish();},gizmoPreview:previewGizmo,gizmoEnd:finishGizmo,connectionSelect:hit=>{spaces?.clear();finishPropertyEdit();projectSelected=false;selected=null;selectedIds=[];links.select(hit);render();},connectionStart:hit=>links.start(hit),connectionPreview:(pos,options)=>links.preview(pos,options),connectionEnd:ok=>links.finish(ok),error:graphicsError},$('gizmo-rotate'));}
+  try{scene=new window.FEMSScene($('scene'),$('labels'),{select:selectInScene,navigateEquipment:id=>{const target=history.current.equipment.find(e=>e.id===id),floor=history.current.floors?.find(f=>f.id===target?.floorId);if(!target)return;if(spaces)spaces.context=floor?{floorId:floor.id,buildingId:floor.buildingId}:{};select(id);scene?.fit();const item=scene?.state?.equipment.find(e=>e.id===id);if(item){scene.target.set(item.x,(item.y||0)+item.height/2,item.z);scene.updateCamera();}},selectLabel:(id,event)=>selectInScene(id,event,true),place:add,move:(id,pos)=>{selected=id;changeSelected(pos,'설비 위치를 변경했습니다.');},gizmoStart:startGizmo,gizmoPreview:previewGizmo,gizmoEnd:finishGizmo,connectionSelect:hit=>{spaces?.clear();finishPropertyEdit();projectSelected=false;selected=null;selectedIds=[];links.select(hit);render();},connectionStart:hit=>links.start(hit),connectionPreview:(pos,options)=>links.preview(pos,options),connectionEnd:ok=>links.finish(ok),error:graphicsError},$('gizmo-rotate'));}
   catch(error){graphicsError('3D 화면을 시작할 수 없습니다. WebGL 2를 지원하는 Edge 또는 Chrome에서 그래픽 가속을 확인하세요. 설비 목록과 속성 편집·파일 저장은 계속 사용할 수 있습니다.');}
   tree=new window.FEMSEquipmentTree($('equipment-tree'),$('equipment-search'),{select:(id,ids)=>select(id,ids,false,false,view==='schematic'&&history.current.equipment.some(e=>e.id===id)),selectProject:()=>select(null,[],true),reparent,error:toast,dropInfo:(ids,parentId)=>spaces?.dropInfo(ids,parentId)});
   schematic=new window.FEMSSchematic($('schematic'),{select:id=>select(id,id?[id]:[],false,false,true),locate:id=>{const item=history.current.equipment.find(e=>e.id===id);if(!item)return;spaces?.focusFloor(item.floorId);setView('3d');select(id,[id],false,false,true);scene?.fit({preserveAngle:true});}});
   for(const key of ['3d','plan','schematic'])$('view-'+key).addEventListener('click',()=>setView(key));
+  for(const direction of ['horizontal','vertical'])$('align-'+direction).addEventListener('click',()=>alignSelection(direction));
   $('fit').addEventListener('click',fitView);$('zoom-in').addEventListener('click',()=>view==='schematic'?schematic?.zoom(1/.85):scene?.zoom(.85));$('zoom-out').addEventListener('click',()=>view==='schematic'?schematic?.zoom(1/1.18):scene?.zoom(1.18));
   $('labels-toggle').addEventListener('click',()=>{if(!scene)return;scene.showLabels=!scene.showLabels;$('labels-toggle').setAttribute('aria-pressed',String(scene.showLabels));scene.invalidate();});
   $('site-edit').addEventListener('click',()=>{

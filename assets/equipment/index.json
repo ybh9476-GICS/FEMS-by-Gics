@@ -177,6 +177,36 @@
       "width": 5.5857,
       "depth": 5.079,
       "height": 0.45
+    },
+    {
+      "type": "asset-86e53a87-9cc7-40f8-9196-46b64a887ef1",
+      "name": "Pump",
+      "en": "",
+      "custom": true,
+      "code": "",
+      "group": "추가 에셋",
+      "color": "#71869a",
+      "description": "프로젝트에 등록된 GLB 설비입니다.",
+      "model": "assets/equipment/asset-86e53a87-9cc7-40f8-9196-46b64a887ef1/model.glb",
+      "kind": "equipment",
+      "width": 0.2,
+      "depth": 0.3998,
+      "height": 0.2
+    },
+    {
+      "type": "asset-1e02c451-bdf1-4499-b65f-57656dfddbcc",
+      "name": "Air_Pressure150HP",
+      "en": "",
+      "custom": true,
+      "code": "",
+      "group": "추가 에셋",
+      "color": "#71869a",
+      "description": "프로젝트에 등록된 GLB 설비입니다.",
+      "model": "assets/equipment/asset-1e02c451-bdf1-4499-b65f-57656dfddbcc/model.glb",
+      "kind": "equipment",
+      "width": 0.4927,
+      "depth": 0.3472,
+      "height": 0.3524
     }
   ]
 }

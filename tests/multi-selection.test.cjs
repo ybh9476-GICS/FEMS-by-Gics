@@ -72,3 +72,16 @@ test('여러 설비의 3D·평면도 윤곽선을 개별 표시하고 단일 선
   let disposed=0;for(const box of scene.multipleBoxes.values())box.geometry.addEventListener('dispose',()=>disposed++);
   scene.selected='a';scene.selectedIds=['a'];scene.updateSelection();assert.equal(scene.selection.visible,true);assert.equal(scene.multipleBoxes.size,0);assert.equal(disposed,2);
 });
+
+
+test('작업창 Ctrl·Command 클릭은 기즈모 대신 설비를 선택하고 드래그는 선택을 변경하지 않는다',()=>{
+  for(const modifier of ['ctrlKey','metaKey'])for(const mode of ['3d','plan']){
+    const scene=Object.create(context.FEMSScene.prototype),events={},calls=[];
+    const canvas={addEventListener:(name,fn)=>events[name]=fn,setPointerCapture(){},hasPointerCapture:()=>false};
+    Object.assign(scene,{renderer:{domElement:canvas},host:{style:{}},mode,move:true,state:{equipment:[{id:'a'}]},floor:()=>({x:0,z:0}),pickLabel:()=>null,pick:()=> 'a',pickTarget:()=>{throw new Error('modifier click should bypass gizmo');},setHover(){},updateCursor(){},invalidate(){},pan(){},updateCamera(){},handlers:{select:(id,event)=>calls.push([id,!!event[modifier]]),selectLabel:(id,event)=>calls.push(['label:'+id,!!event[modifier]])}});
+    scene.bind();const e={button:0,pointerId:1,clientX:0,clientY:0,[modifier]:true};
+    events.pointerdown(e);assert.equal(scene.drag.item,undefined);events.pointerup(e);assert.deepEqual(calls,[['a',true]]);
+    scene.pickLabel=()=> 'a';events.pointerdown(e);events.pointerup(e);assert.deepEqual(calls[1],['label:a',true]);
+    events.pointerdown(e);events.pointermove({...e,clientX:20});events.pointerup({...e,clientX:20});assert.equal(calls.length,2);
+  }
+});

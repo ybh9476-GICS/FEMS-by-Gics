@@ -4,6 +4,8 @@
   class TransformGizmo {
     constructor(scene, labelHost, rotateButton = null, options = {}) {
       this.rotateButton = rotateButton;
+      this.rotateArc = rotateButton?.parentElement?.querySelector('.gizmo-rotate-arc');
+      if(this.rotateArc)this.rotateArc.addEventListener('click',()=>{if(!this.rotateButton.disabled)this.rotateButton.click();});
       this.group = new T.Group();
       this.group.visible = false;
       scene.add(this.group);
@@ -47,6 +49,7 @@
       if (!this.group.visible) {
         for (const axis of this.axes.values()) axis.label.hidden = true;
         if (this.rotateButton) this.rotateButton.hidden = true;
+        if (this.rotateArc) this.rotateArc.style.display = 'none';
         return;
       }
       this.group.position.set(position.x, position.y||0, position.z);
@@ -58,10 +61,19 @@
     }
     updateLabels(camera, width, height) {
       if (this.rotateButton) {
-        const p = this.group.position.clone().project(camera);
-        this.rotateButton.hidden = !this.group.visible || p.z < -1 || p.z > 1 || Math.abs(p.x) > 1 || Math.abs(p.y) > 1;
-        this.rotateButton.style.left = Math.max(8, Math.min(width - 80, (p.x + 1) / 2 * width - 80)) + 'px';
-        this.rotateButton.style.top = Math.max(8, Math.min(height - 40, (1 - p.y) / 2 * height - 50)) + 'px';
+        const layout=this.rotationLayout(camera,width,height);
+        this.rotateButton.hidden = !layout.visible;
+        this.rotateButton.style.left = layout.center.x + 'px';
+        this.rotateButton.style.top = layout.center.y + 'px';
+        this.rotateButton.style.width = layout.buttonWidth + 'px';
+        this.rotateButton.style.height = layout.buttonHeight + 'px';
+        if(this.rotateArc){
+          this.rotateArc.style.display=layout.visible?'':'none';
+          this.rotateArc.setAttribute('viewBox',`0 0 ${width} ${height}`);
+          this.rotateArc.classList.toggle('disabled',!!this.rotateButton.disabled);
+          this.rotateArc.querySelector('.rotation-curve').setAttribute('d',layout.path);
+          this.rotateArc.querySelector('.rotation-arrow').setAttribute('d',layout.arrow);
+        }
       }
       for (const axis of this.axes.values()) {
         const p = axis.direction.clone().multiplyScalar(1.17).applyMatrix4(this.group.matrixWorld).project(camera);
@@ -69,6 +81,18 @@
         axis.label.style.left = (p.x + 1) / 2 * width + 'px';
         axis.label.style.top = (1 - p.y) / 2 * height + 'px';
       }
+    }
+    rotationLayout(camera,width,height){
+      const project=(x,z)=>{const p=new T.Vector3(x,0,z).applyMatrix4(this.group.matrixWorld).project(camera);return {x:(p.x+1)*width/2,y:(1-p.y)*height/2,depth:p.z};};
+      const points=Array.from({length:25},(_,i)=>{const angle=(12+i*66/24)*Math.PI/180;return project(.82*Math.cos(angle),.82*Math.sin(angle));});
+      const outline=[project(0,0),project(1,0),project(0,1),...points];
+      const bounds={left:Math.min(...outline.map(p=>p.x)),right:Math.max(...outline.map(p=>p.x)),top:Math.min(...outline.map(p=>p.y)),bottom:Math.max(...outline.map(p=>p.y))};
+      const buttonWidth=Math.min(32,bounds.right-bounds.left),buttonHeight=Math.min(20,bounds.bottom-bounds.top);
+      const middle=points[12],center={x:Math.max(bounds.left+buttonWidth/2,Math.min(bounds.right-buttonWidth/2,middle.x)),y:Math.max(bounds.top+buttonHeight/2,Math.min(bounds.bottom-buttonHeight/2,middle.y))};
+      const end=points.at(-1),previous=points.at(-2),length=Math.hypot(end.x-previous.x,end.y-previous.y)||1,dx=(end.x-previous.x)/length,dy=(end.y-previous.y)/length;
+      // The short arc lives outside the XZ move square and inside the axis tips.
+      const visible=this.group.visible&&buttonWidth>=24&&buttonHeight>=14&&outline.every(p=>p.depth>=-1&&p.depth<=1)&&center.x>=buttonWidth/2&&center.x<=width-buttonWidth/2&&center.y>=buttonHeight/2&&center.y<=height-buttonHeight/2;
+      return {visible,center,bounds,buttonWidth,buttonHeight,path:points.map((p,i)=>`${i?'L':'M'}${p.x},${p.y}`).join(' '),arrow:`M${end.x-dx*5-dy*3},${end.y-dy*5+dx*3} L${end.x},${end.y} L${end.x-dx*5+dy*3},${end.y-dy*5-dx*3}`};
     }
     highlight(active) {
       for (const [name, axis] of this.axes) axis.material.color.set(name === active ? '#e6ad26' : axis.color);
@@ -105,6 +129,14 @@
       const point = ray.intersectPlane(drag.plane, new T.Vector3());
       if (!point) return null;
       const axis = drag.axis, item = drag.item;
+      if(item.moveLimits){
+        const result={x:item.x,z:item.z};
+        for(const key of axis==='xz'?['x','z']:[axis]){
+          const limit=item.moveLimits[key],value=item[key]+Math.round((point[key]-drag.start[key])*100)/100;
+          result[key]=limit.min>limit.max?item[key]:Math.max(limit.min,Math.min(limit.max,value));
+        }
+        return result;
+      }
       if (axis === 'xz') return M.clampPosition(item,
         Math.round((item.x + point.x - drag.start.x) * 100) / 100,
         Math.round((item.z + point.z - drag.start.z) * 100) / 100, site);

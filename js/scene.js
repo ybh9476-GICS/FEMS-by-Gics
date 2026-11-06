@@ -94,10 +94,23 @@
     }
     setMode(mode){if(this.drag?.axis||this.drag?.connection)this.cancelDrag();this.setHover();this.lastPointer=null;this.mode=mode;if(mode==='plan')this.planYaw=0;this.camera=mode==='plan'?this.ortho:this.perspective;this.models.forEach(m=>m.visible=mode==='3d');this.footprints.forEach(m=>m.visible=mode==='plan');this.resize();this.updateSelection();}
     setArmed(type){if(this.drag?.axis||this.drag?.connection)this.cancelDrag();this.setHover();this.armed=type;this.ghost.visible=false;this.updateCursor();this.invalidate();}
+    transformItem(){
+      const single=this.state?.equipment.find(e=>e.id===this.selected);
+      if(single)return single;
+      const ids=this.selectedIds||[],items=(this.state?.equipment||[]).filter(e=>ids.includes(e.id));
+      if(items.length<2||items.some(e=>e.backdrop||e.noGizmo||e.preview||(e.floorId||null)!==(items[0].floorId||null)))return null;
+      const bounds=M.groupBounds(this.state,ids),pivot=this.groupPivot||bounds;
+      const limits={};
+      for(const [axis,size] of [['x',this.state.site.width],['z',this.state.site.depth]]){
+        const low=Math.min(...items.map(e=>e[axis]-M.extents(e)[axis])),high=Math.max(...items.map(e=>e[axis]+M.extents(e)[axis]));
+        limits[axis]={min:pivot[axis]-size/2-low,max:pivot[axis]+size/2-high};
+      }
+      return {...bounds,id:'@selection',x:pivot.x,z:pivot.z,y:items[0].y||0,rotation:0,moveLimits:limits};
+    }
     updateGizmo(){
       if(!this.gizmo)return;
-      const item=this.state?.equipment.find(e=>e.id===this.selected);
-      this.gizmo.update(item, this.models.get(this.selected)?.position, this.camera, this.height, !this.armed&&!item?.backdrop&&!item?.noGizmo);
+      const item=this.transformItem();
+      this.gizmo.update(item, item?.id==='@selection'?item:this.models.get(this.selected)?.position, this.camera, this.height, !this.armed&&!item?.backdrop&&!item?.noGizmo);
       if(this.gizmo.rotateButton)this.gizmo.rotateButton.disabled=!!this.drag;
       this.gizmo.highlight(this.drag?.axis||this.hoverAxis);
       if(this.connectionGizmo){
@@ -228,12 +241,15 @@
       canvas.addEventListener('contextmenu',e=>e.preventDefault());
       canvas.addEventListener('wheel',e=>{e.preventDefault();if(!this.drag?.axis&&!this.drag?.connection)this.zoom(Math.exp(Math.sign(e.deltaY)*.09));},{passive:false});
       canvas.addEventListener('pointerdown',e=>{if(this.drag||(e.button!==0&&e.button!==2)||(this.mode==='plan'&&e.button===2))return;
-        const target=e.button===0?this.pickTarget(e):{id:this.armed?null:this.pick(e)};
+        const additive=!this.armed&&(e.ctrlKey||e.metaKey);
+        const label=additive?this.pickLabel(e):null;
+        const target=e.button===0?(additive?{id:label||this.pick(e),label:!!label}:this.pickTarget(e)):{id:this.armed?null:this.pick(e)};
         this.setHover();
         const {axis,id,link}=target;
         if(axis){
           this.handlers.gizmoStart();
-          const item=this.state.equipment.find(v=>v.id===this.selected);
+          const item=this.transformItem();
+          if(!item)return;
           const axisDrag=this.gizmo.begin(axis,this.ray.ray,this.camera,item);
           if(!axisDrag)return;
           this.drag={...axisDrag,id:item.id,button:0,pointerId:e.pointerId,x:e.clientX,y:e.clientY,moved:false};
@@ -251,7 +267,7 @@
           canvas.setPointerCapture(e.pointerId);this.host.style.cursor='default';return;
         }
         const point=this.floor(e);this.drag={x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,button:e.button,pointerId:e.pointerId,id,label:target.label,moved:false};
-        if(id&&this.move&&e.button===0&&point){this.handlers.select(id);const item=this.state.equipment.find(v=>v.id===id);this.drag.item=M.clone(item);this.drag.offset={x:item.x-point.x,z:item.z-point.z};}
+        if(id&&this.move&&!additive&&e.button===0&&point){this.handlers.select(id);const item=this.state.equipment.find(v=>v.id===id);this.drag.item=M.clone(item);this.drag.offset={x:item.x-point.x,z:item.z-point.z};}
         this.updateCursor();canvas.setPointerCapture(e.pointerId);});
       canvas.addEventListener('pointermove',e=>{
         this.lastPointer={clientX:e.clientX,clientY:e.clientY,altKey:e.altKey};
@@ -287,7 +303,7 @@
         if(d.axis){this.handlers.gizmoEnd(true);this.invalidate();return;}
         if(d.connection){this.handlers.connectionEnd(true);this.invalidate();return;}
         if(d.item&&d.position)this.handlers.move(d.id,d.position);
-        else if(!d.moved&&e.button===0){if(this.armed){const point=this.floor(e);if(point&&Math.abs(point.x)<=this.state.site.width/2&&Math.abs(point.z)<=this.state.site.depth/2)this.handlers.place(this.armed,Math.round(point.x*2)/2,Math.round(point.z*2)/2);}else if(d.label&&this.handlers.selectLabel)this.handlers.selectLabel(d.id);else this.handlers.select(d.id||null);}});
+        else if(!d.moved&&e.button===0){if(this.armed){const point=this.floor(e);if(point&&Math.abs(point.x)<=this.state.site.width/2&&Math.abs(point.z)<=this.state.site.depth/2)this.handlers.place(this.armed,Math.round(point.x*2)/2,Math.round(point.z*2)/2);}else if(d.label&&this.handlers.selectLabel)this.handlers.selectLabel(d.id,e);else this.handlers.select(d.id||null,e);}});
       canvas.addEventListener('pointercancel',()=>this.cancelDrag());
       canvas.addEventListener('lostpointercapture',()=>{if(this.drag)this.cancelDrag();});
       root.addEventListener?.('blur',()=>{if(this.drag)this.cancelDrag();this.lastPointer=null;this.setHover();});

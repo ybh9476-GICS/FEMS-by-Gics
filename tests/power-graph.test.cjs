@@ -63,7 +63,7 @@ test('추가 회로의 선 편집과 색상 변경은 기존 변압기 회로를
  const prepared=await P.prepareDefault(state);const env={window:{}};vm.runInNewContext(D.serialize(prepared),env);assert.deepEqual(M.validate(JSON.parse(JSON.stringify(env.window.FEMSDefaultLayout))),prepared);
 });
 test('v4 시작 변환은 먼저 백업하고 저장 실패·재시작 시 원문 백업을 보존한다',()=>{
- const source=fs.readFileSync('js/app.js','utf8'),code=source.slice(source.indexOf('  if(autosaveAllowed&&history.current.version<4)'),source.indexOf('  let propertyEdit'));
+ const source=fs.readFileSync('js/app.js','utf8'),code='(function(){'+source.slice(source.indexOf('  if(autosaveAllowed&&history.current.version<4)'),source.indexOf('  let propertyEdit'))+'})();';
  const original=fixture(),raw=JSON.stringify(original),key=M.STORAGE_KEY+'-before-power-v4';
  for(const failAt of [null,key,M.STORAGE_KEY]){
   const storage=new Map([[M.STORAGE_KEY,raw]]),writes=[],context={M,window:{FEMSConnections:L},history:{current:original},autosaveAllowed:true,startupMessage:'',localStorage:{getItem:k=>storage.get(k),setItem(k,v){writes.push(k);if(k===failAt)throw Error('quota');storage.set(k,v);}}};

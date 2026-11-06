@@ -219,6 +219,21 @@
     if(field==='x'||field==='z'||field==='rotation')pivot[field]=value;
     return {state:validate(next),frame:pivot};
   }
+  function alignEquipment(state, ids, direction) {
+    if(!['horizontal','vertical'].includes(direction))throw new Error('올바른 정렬 방향을 선택하세요.');
+    const chosen=new Set(ids),items=state.equipment.filter(e=>chosen.has(e.id));
+    if(items.length<2||items.length!==chosen.size)throw new Error('설비를 2개 이상 선택하세요.');
+    if(items.some(e=>(e.floorId||null)!==(items[0].floorId||null)))throw new Error('같은 공간의 설비끼리 정렬하세요.');
+    const space=state.floors?.find(f=>f.id===items[0].floorId)||state.site;
+    const axis=direction==='horizontal'?'z':'x',size=axis==='x'?space.width:space.depth;
+    const extent=Math.max(...items.map(e=>extents(e)[axis]));
+    if(extent>size/2)throw new Error('설비 크기가 공간보다 커서 정렬할 수 없습니다.');
+    const center=(Math.min(...items.map(e=>e[axis]))+Math.max(...items.map(e=>e[axis])))/2;
+    const target=Math.max(-size/2+extent,Math.min(size/2-extent,center));
+    const next=clone(state);
+    for(const item of next.equipment)if(chosen.has(item.id))item[axis]=target;
+    return validate(next);
+  }
   function removeEquipmentGroup(state, ids) {
     const next=clone(state),removed=new Set(ids),byId=new Map(state.equipment.map(e=>[e.id,e]));
     next.equipment=next.equipment.filter(e=>!removed.has(e.id));
@@ -273,7 +288,7 @@
     undo() { this.finishEdit(); if (!this.past.length) return false; this.future.push(this.current); this.current = this.past.pop(); return true; }
     redo() { this.finishEdit(); if (!this.future.length) return false; this.past.push(this.current); this.current = this.future.pop(); return true; }
   }
-  const api = { STORAGE_KEY, FORMAT, LIMIT, SITE_MIN, SITE_MAX, siteGridStep, clone, validate, empty, create, duplicateName, demo, extents, clampPosition, resizeDimensions, resizeSite, groupBounds, transformGroup, removeEquipmentGroup, reparent, moveEquipment, moveEquipmentGroup, removeEquipment, removeAsset, overlaps, History };
+  const api = { STORAGE_KEY, FORMAT, LIMIT, SITE_MIN, SITE_MAX, siteGridStep, clone, validate, empty, create, duplicateName, demo, extents, clampPosition, resizeDimensions, resizeSite, groupBounds, transformGroup, alignEquipment, removeEquipmentGroup, reparent, moveEquipment, moveEquipmentGroup, removeEquipment, removeAsset, overlaps, History };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.FEMSModel = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
