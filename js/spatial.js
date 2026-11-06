@@ -5,6 +5,7 @@
   const all=state=>[...(state.buildings||[]),...(state.floors||[])];
   const get=(state,id)=>all(state).find(item=>item.id===id);
   const kind=(state,id)=>state.buildings?.some(b=>b.id===id)?'building':state.floors?.some(f=>f.id===id)?'floor':null;
+  const floorSurface=f=>f.type&&f.type!=='space-floor'?0:f.height*.08;
   function number(v,min,max,label){if(!Number.isFinite(v)||v<min||v>max)throw new Error(label+': '+min+'~'+max+' 범위로 입력하세요.');return v;}
   function text(v,label){if(typeof v!=='string'||!v.trim()||v.length>80)throw new Error(label+': 1~80자로 입력하세요.');return v.trim();}
   function validate(raw,result){
@@ -19,6 +20,7 @@
         for(const field of ['x','z'])out[field]=number(item[field],-100000,100000,field);
         out.rotation=number(item.rotation,0,359.999,'회전');
         for(const field of ['width','depth','height'])out[field]=number(item[field],.01,100000,field);
+        if(key==='buildings'&&item.roofElevation!=null)out.roofElevation=number(item.roofElevation,.01,out.height,'옥상 바닥 높이');
         if(key==='floors'){
           out.elevation=number(item.elevation,-100000,100000,'층 배치 높이');
           if(item.buildingId!=null)out.buildingId=text(item.buildingId,'건물 ID');
@@ -34,6 +36,13 @@
       if(floor.buildingId&&floor.level){if(slots.has(slot))throw new Error('같은 건물에 층 번호가 중복되었습니다.');slots.add(slot);}
     }
     for(const item of result.equipment)if(item.floorId&&!result.floors.some(f=>f.id===item.floorId))throw new Error('설비가 소속된 층을 찾을 수 없습니다.');
+    for(const building of result.buildings.filter(b=>b.roofElevation!=null)){
+      const floors=result.floors.filter(f=>f.buildingId===building.id),roof=floors.find(f=>f.level==='R');
+      if(!roof)continue;
+      roof.elevation=building.roofElevation-floorSurface(roof);
+      for(const f of floors){const ceiling=Math.min(building.height,...floors.filter(other=>other!==f&&other.elevation>f.elevation).map(other=>other.elevation));
+        if(f.elevation+f.height>ceiling+1e-8||floors.some(other=>other!==f&&Math.abs(other.elevation-f.elevation)<1e-8))throw new Error(f.name+': 다른 층과 겹치거나 건물 높이를 초과했습니다.');}
+    }
   }
   function upgrade(state){const next=copy(state);next.version=Math.max(3,next.version);next.buildings??=[];next.floors??=[];return next;}
   function create(state,def,x=0,z=0){
@@ -77,13 +86,14 @@
     // Electrical parent IDs and network paths remain intact. Cross-space links are represented by portals.
     return next;
   }
-  function slots(above,below,roof,height){
+  function slots(above,below,roof,height,roofElevation=null){
     for(const n of [above,below])if(!Number.isInteger(n)||n<0||n>100)throw new Error('층 수는 0~100의 정수로 입력하세요.');
     number(height,.01,100000,'건물 높이');if(!above&&!below)throw new Error('한 개 이상의 층을 설정하세요.');
     if(roof&&above<2)throw new Error('옥상은 지상 2층 이상일 때 사용할 수 있습니다.');
-    const spacing=height/Math.max(1,above-(roof?1:0));
+    const top=roof&&roofElevation!=null?number(roofElevation,.01,height,'옥상 바닥 높이'):height;
+    const spacing=top/Math.max(1,above-(roof?1:0));
     const out=[];
-    if(roof)out.push({level:'R',name:'옥상',elevation:height});
+    if(roof)out.push({level:'R',name:'옥상',elevation:top,...(roofElevation!=null?{surfaceElevation:top}:{})});
     for(let i=above-(roof?1:0);i>=1;i--)out.push({level:i+'F',name:i+'F',elevation:(i-1)*spacing});
     for(let i=1;i<=below;i++)out.push({level:'B'+i,name:'B'+i,elevation:-i*spacing});
     return out;
@@ -103,7 +113,8 @@
       if(slot.floorId===null){delete item.type;Object.assign(item,{width:building.width,depth:building.depth,height:.2});}
       if(slot.model)Object.assign(item,{type:slot.model.type,width:slot.model.width,depth:slot.model.depth,height:slot.model.height});
       if(slot.size)Object.assign(item,slot.size);
-      return {...item,buildingId,level:slot.level,name:slot.name||slot.level,elevation:slot.level==='R'&&slot.size?building.height-item.height:slot.elevation,...(!item.buildingId?{x:0,z:0,rotation:0}:{}),...(slot.position||{})};
+      const elevation=slot.level==='R'&&slot.surfaceElevation!=null?number(slot.surfaceElevation,.01,building.height,'옥상 바닥 높이')-floorSurface(item):slot.level==='R'&&slot.size?building.height-item.height:slot.elevation;
+      return {...item,buildingId,level:slot.level,name:slot.name||slot.level,elevation,...(!item.buildingId?{x:0,z:0,rotation:0}:{}),...(slot.position||{})};
     });
     if(entries.some(s=>s.size))for(const floor of registered){
       const a=floor.rotation*Math.PI/180,c=Math.abs(Math.cos(a)),s=Math.abs(Math.sin(a));
@@ -117,6 +128,9 @@
     }
     const replacing=new Set(registered.map(f=>f.id));next.floors=next.floors.filter(f=>!replacing.has(f.id)).concat(registered);
     if(replacing.size!==registered.length)throw new Error('같은 층을 여러 슬롯에 사용할 수 없습니다.');
+    const roof=entries.find(s=>s.level==='R');
+    if(roof?.surfaceElevation!=null)building.roofElevation=roof.surfaceElevation;
+    else delete building.roofElevation;
     return next;
   }
   function floorDraftItem(state,buildingId,slot){
@@ -144,10 +158,12 @@
     const b=get(state,buildingId),item=floorDraftItem(state,buildingId,slot);
     let height;
     if(slot.level==='R'){
-      const previous=entries.filter(s=>s!==slot&&s.elevation<b.height).sort((a,b)=>b.elevation-a.elevation)[0];
-      height=b.height-(previous?previous.elevation+floorDraftItem(state,buildingId,previous).height:0);
+      const top=slot.surfaceElevation??b.height,previous=entries.filter(s=>s!==slot&&s.elevation<top).sort((a,b)=>b.elevation-a.elevation)[0];
+      const lower=previous?previous.elevation+floorDraftItem(state,buildingId,previous).height:0;
+      const ratio=floorSurface(item)/item.height;
+      height=slot.surfaceElevation!=null?Math.min((b.height-top)/(1-ratio),ratio?(top-lower)/ratio:Infinity):b.height-lower;
     }else{
-      const tops=entries.filter(s=>s!==slot&&s.elevation>slot.elevation).map(s=>s.level==='R'?b.height-floorDraftItem(state,buildingId,s).height:s.elevation);
+      const tops=entries.filter(s=>s!==slot&&s.elevation>slot.elevation).map(s=>s.level==='R'?(s.surfaceElevation!=null?s.surfaceElevation-floorSurface(floorDraftItem(state,buildingId,s)):b.height-floorDraftItem(state,buildingId,s).height):s.elevation);
       height=Math.min(b.height,...tops)-slot.elevation;
     }
     return {width:b.width-2*Math.abs(item.x),depth:b.depth-2*Math.abs(item.z),height:Math.min(b.height,height),rotation:item.rotation};
@@ -171,7 +187,7 @@
       }
     }else{
       const ratio=Math.min(1,limits.width/(c*next.width+s*next.depth),limits.depth/(s*next.width+c*next.depth));
-      next.width*=ratio;next.depth*=ratio;next.height=Math.min(next.height,limits.height);
+      next.width*=ratio;next.depth*=ratio;if(next.height>limits.height+1e-8)next.height=limits.height;
     }
     for(const k of keys){if(next[k]<.01-1e-10||!Number.isFinite(next[k]))throw new Error('층을 배치할 공간이 부족합니다. 층 수나 건물 크기를 조정하세요.');next[k]=Math.max(.01,next[k]);}
     return next;
@@ -180,11 +196,12 @@
     const result=copy(entries),b=get(state,buildingId);
     // Fit the roof first, reserving the minimum thickness for the storey below.
     const roof=result.find(s=>s.level==='R');
-    if(roof){
+    if(roof&&roof.surfaceElevation==null){
       const previous=result.filter(s=>s!==roof&&s.elevation<b.height).sort((a,b)=>b.elevation-a.elevation)[0];
       const limits={...floorSizeLimits(state,buildingId,result,roof),height:Math.min(b.height,b.height-(previous?previous.elevation+.01:0))};
       roof.size=fitFloorSize(floorDraftItem(state,buildingId,roof),limits);
     }
+    if(roof&&roof.surfaceElevation!=null)roof.size=fitFloorSize(floorDraftItem(state,buildingId,roof),floorSizeLimits(state,buildingId,result,roof));
     for(const slot of result)if(slot!==roof)slot.size=fitFloorSize(floorDraftItem(state,buildingId,slot),floorSizeLimits(state,buildingId,result,slot));
     return result;
   }
@@ -200,6 +217,31 @@
     }
     return next;
   }
+  // Explicit floor deletion differs from asset removal, which preserves occupants.
+  function removeFloor(state,id){
+    const floor=state.floors.find(f=>f.id===id);if(!floor)return copy(state);
+    const model=root.FEMSModel||(typeof require==='function'?require('./model.js'):null);
+    let next=model.removeEquipmentGroup(state,state.equipment.filter(e=>e.floorId===id).map(e=>e.id));
+    next.floors=next.floors.filter(f=>f.id!==id);
+    const building=next.buildings.find(b=>b.id===floor.buildingId);if(!building)return next;
+    const remaining=next.floors.filter(f=>f.buildingId===building.id),roof=remaining.find(f=>f.level==='R');
+    const upper=remaining.filter(f=>f!==roof&&!/^B\d+$/.test(f.level)).sort((a,b)=>a.elevation-b.elevation);
+    const lower=remaining.filter(f=>/^B\d+$/.test(f.level)).sort((a,b)=>b.elevation-a.elevation);
+    // A single above-ground storey is 1F; a roof needs an interior storey below it.
+    if(roof&&!upper.length)upper.push(roof);
+    const hasRoof=roof&&upper[0]!==roof;
+    const top=hasRoof?(building.roofElevation??roof.elevation+floorSurface(roof)):building.height;
+    const spacing=top/Math.max(1,upper.length);
+    const place=(f,level,elevation)=>{if(f.name===f.level||f.level==='R'&&f.name==='옥상')f.name=level;f.level=level;f.elevation=elevation;};
+    upper.forEach((f,i)=>place(f,(i+1)+'F',i*spacing));
+    lower.forEach((f,i)=>place(f,'B'+(i+1),-(i+1)*spacing));
+    if(hasRoof){building.roofElevation=top;roof.elevation=top-floorSurface(roof);}else delete building.roofElevation;
+    for(const f of remaining){
+      const ceiling=Math.min(building.height,...remaining.filter(other=>other.elevation>f.elevation).map(other=>other.elevation));
+      if(f.elevation+f.height>ceiling+1e-8)throw new Error('남은 층의 크기가 재계산된 층 간격을 초과합니다. 층 등록·수정에서 크기를 조정한 뒤 삭제하세요.');
+    }
+    return model.validate(next);
+  }
   function treeState(state){
     const equipment=state.equipment.map(e=>{const parent=state.equipment.find(p=>p.id===e.parentId);return {...e,parentId:parent&&(parent.floorId||null)===(e.floorId||null)?parent.id:e.floorId||'@site'};});
     return {...state,equipment:[{id:'@site',name:'대지',code:'',type:'space-floor'},...(state.buildings||[]).map(b=>({...b,parentId:'@site',code:''})),...(state.floors||[]).slice().sort((a,b)=>b.elevation-a.elevation).map(f=>({...f,type:f.type||'space-floor',parentId:f.buildingId||'@site',code:''})),...equipment]};
@@ -207,7 +249,7 @@
   function view(state,context={}){
     const floor=state.floors?.find(f=>f.id===context.floorId),building=state.buildings?.find(b=>b.id===context.buildingId);
     let equipment=[],site=state.site,focusBounds=null,connectionFrames=null,connectionSurfaceY=0;
-    const surface=f=>f.type&&f.type!=='space-floor'?0:f.height*.08;
+    const surface=floorSurface;
     if(floor){
       connectionSurfaceY=surface(floor);
       equipment=state.equipment.filter(e=>e.floorId===floor.id).map(e=>({...e,y:connectionSurfaceY}));
@@ -219,11 +261,16 @@
       equipment.unshift({...building,x:0,z:0,rotation:0,y:0,backdrop:true,buildingShell:true,noGizmo:true});
     }else {
       equipment=[...state.equipment.filter(e=>!e.floorId),...(state.buildings||[]),...(state.floors||[]).filter(f=>!f.buildingId).map(f=>({...f,type:f.type||'space-floor',y:f.elevation}))];
+      // Rooftop equipment shares its saved floor coordinates; only its shell is hidden on site.
+      connectionFrames={};
+      for(const f of (state.floors||[]).filter(f=>f.level==='R'&&f.buildingId&&f.buildingId!==building?.id)){
+        const frame={...worldFrame(state,f.id),elevation:f.elevation+surface(f)};connectionFrames[f.id]=frame;
+        equipment.push(...state.equipment.filter(e=>e.floorId===f.id).map(e=>({...e,...transform(e,frame),rotation:(e.rotation+frame.rotation)%360,y:frame.elevation,noGizmo:true,rooftop:true})));
+      }
       if(building){
         equipment=equipment.map(e=>e.id===building.id?{...e,backdrop:true,buildingShell:true,noGizmo:true}:e);
         const floors=state.floors.filter(f=>f.buildingId===building.id).map(f=>({...f,...worldFrame(state,f.id),type:f.type||'space-floor',y:f.elevation,floorSelector:true,noGizmo:true}));
         equipment.push(...floors);
-        connectionFrames={};
         for(const f of floors){
           const frame={...worldFrame(state,f.id),elevation:f.y+surface(f)};connectionFrames[f.id]=frame;
           equipment.push(...state.equipment.filter(e=>e.floorId===f.id).map(e=>({...e,...transform(e,frame),rotation:(e.rotation+frame.rotation)%360,y:frame.elevation,noGizmo:true})));
@@ -245,6 +292,6 @@
     for(const e of state.equipment){const f=state.floors?.find(f=>f.id===e.floorId);if(f&&outside(e,f))result.push(e.name+': 층 영역 밖');}
     return result;
   }
-  const api={all,get,kind,validate,upgrade,create,transform,worldFrame,moveEquipment,slots,registerFloors,floorDraftItem,floorSizeLimits,fitFloorSize,fitFloorSlots,moveFloorSlots,detachFloor,remove,treeState,view,warnings};
+  const api={all,get,kind,validate,upgrade,create,transform,worldFrame,moveEquipment,slots,registerFloors,floorDraftItem,floorSizeLimits,fitFloorSize,fitFloorSlots,moveFloorSlots,detachFloor,remove,removeFloor,treeState,view,warnings,floorSurface};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FEMSSpatial=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

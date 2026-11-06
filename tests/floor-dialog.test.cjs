@@ -24,24 +24,43 @@ test('취소·재열기는 초안을 폐기하고 배경 공간과 카메라를 
   ui.configure();assert.equal(ui.draft.slots.length,1);assert.equal(scenes.length,1);
 });
 
-test('반투명 건물 표시는 미리보기만 전환하고 층 초안·원본·카메라를 보존한다',()=>{
+test('건물 투명도는 기본 30%이며 미리보기만 변경하고 층 초안·원본·카메라를 보존한다',()=>{
   const {ui,state,get,scenes}=fixture();state.floors=S.registerFloors(state,'building',S.slots(2,0,false,12)).floors;
   const before=M.clone(state);ui.configure();
-  assert.equal(get('floors-show-building').checked,true);
+  assert.equal(get('floors-building-transparency').value,'30');
   const scene=scenes[0],shell=scene.state.equipment.find(e=>e.buildingShell);
   assert.equal(shell.id,'building');assert.equal(shell.backdrop,true);assert.equal(shell.noGizmo,true);
   assert.equal(shell.x,0);assert.equal(shell.z,0);assert.equal(scene.state.hideGround,true);
   const draft=M.clone(ui.draft.slots),floors=scene.state.equipment.filter(e=>!e.buildingShell);
-  scene.fitted=false;get('floors-show-building').checked=false;ui.previewRegistration(false);
-  assert.deepEqual(scene.state.equipment,floors);assert.equal(scene.fitted,false);
-  get('floors-show-building').checked=true;ui.previewRegistration(false);
-  assert.deepEqual(scene.state.equipment.filter(e=>!e.buildingShell),floors);assert.equal(scene.fitted,false);
+  scene.fitted=false;
+  for(const value of [0,30,65,100]){get('floors-building-transparency').value=String(value);ui.previewRegistration(false);
+    assert.equal(scene.state.equipment.find(e=>e.buildingShell).previewOpacity,1-value/100);
+    assert.equal(get('floors-building-transparency-value').textContent,value+'%');
+    assert.deepEqual(scene.state.equipment.filter(e=>!e.buildingShell),floors);assert.equal(scene.fitted,false);
+  }
   assert.deepEqual(ui.draft.slots,draft);assert.deepEqual(state,before);
-  ui.cancelRegistration();ui.configure();assert.equal(get('floors-show-building').checked,true);
+  ui.cancelRegistration();ui.configure();assert.equal(get('floors-building-transparency').value,'30');
 });
 test('잘못된 층 높이는 오류를 표시하고 마지막 미리보기와 프로젝트를 보존한다',()=>{
   const {ui,state,get,scenes}=fixture();ui.configure();const previous=scenes[0].state;ui.draft.slots[0].elevation=NaN;ui.previewRegistration();
   assert.ok(get('floor-register-error').textContent);assert.equal(scenes[0].state,previous);assert.equal(state.floors.length,0);
+});
+
+test('옥상 높이만 변경하면 간격을 재계산하고 겹침 입력은 초안·미리보기·원본을 보존한다',()=>{
+  const {ui,state,get,scenes}=fixture();ui.configure();get('floors-above').value='5';get('floors-roof').checked=true;ui.generate();
+  get('floors-roof-height').value='8';ui.generate(true);
+  assert.equal(get('floors-spacing').textContent,'2 m');assert.equal(get('floors-apply').disabled,false);
+  const roof=scenes[0].state.floors.find(f=>f.level==='R');assert.equal(roof.elevation+S.floorSurface(roof),8);
+  const draft=M.clone(ui.draft.slots),preview=scenes[0].state;
+  get('floors-roof-height').value='0.1';ui.generate(true);assert.equal(get('floors-apply').disabled,true);assert.ok(get('floor-register-error').textContent);assert.deepEqual(M.clone(ui.draft.slots),draft);assert.equal(scenes[0].state,preview);assert.equal(state.floors.length,0);
+  ui.previewRegistration();assert.equal(get('floors-apply').disabled,true);
+  get('floors-roof-height').value='8';ui.generate(true);assert.equal(get('floors-apply').disabled,false);
+});
+
+test('대지의 옥상 설비 선택은 해당 층으로 진입하고 원본을 변경하지 않는다',()=>{
+  const {ui,state}=fixture();ui.context={};state.floors=S.registerFloors(state,'building',S.slots(3,0,true,12,10).map(s=>({...s,size:{width:20,depth:16,height:.2}}))).floors;
+  const roof=state.floors.find(f=>f.level==='R'),pv={...M.create('solar',state),floorId:roof.id};state.equipment.push(pv);const before=M.clone(state);
+  assert.equal(ui.choose(pv.id),false);assert.equal(ui.context.floorId,roof.id);ui.focusFloor(roof.id);assert.equal(ui.context.floorId,roof.id);assert.deepEqual(state,before);
 });
 
 test('건물 선택은 투명 외형과 층 선택 화면으로 진입하고 뒤로가기는 한 단계씩 복귀한다',()=>{
@@ -54,13 +73,15 @@ test('건물 선택은 투명 외형과 층 선택 화면으로 진입하고 뒤
   ui.back();assert.equal(ui.context.buildingId,undefined);assert.deepEqual(ui.display(state).equipment.map(e=>e.id),[state.equipment[0].id,'building']);assert.deepEqual(state,before);
 });
 
-test('건물 선택은 각도 유지 확대를 요청하며 층 진입·대지 전체 보기는 기존 맞춤을 사용한다',()=>{
+test('건물·층 진입은 각도 유지 확대를 요청하며 건물 복귀는 각도를 유지해 범위를 맞춘다',()=>{
   const {ui,state}=fixture(),options=[];ui.api.fit=value=>options.push(value);ui.context={};
   state.floors.push({id:'floor',buildingId:'building',name:'1F',level:'1F',x:0,z:0,rotation:0,width:20,depth:16,height:.2,elevation:0});
   ui.choose('building');assert.equal(options.at(-1).preserveAngle,true);assert.equal(options.at(-1).zoomInOnly,true);
-  ui.choose('floor',{billboard:true});assert.equal(options.at(-1),undefined);
+  ui.choose('floor',{billboard:true});assert.equal(options.at(-1).preserveAngle,true);assert.equal(options.at(-1).zoomInOnly,true);
+  ui.choose('floor');assert.equal(options.at(-1).preserveAngle,true);assert.equal(options.at(-1).zoomInOnly,true);
   ui.back();assert.equal(options.at(-1).preserveAngle,true);assert.equal(options.at(-1).zoomInOnly,false);
   ui.back();assert.equal(options.at(-1),undefined);
+  delete state.floors[0].buildingId;ui.choose('floor',{billboard:true});assert.equal(options.at(-1).preserveAngle,true);assert.equal(options.at(-1).zoomInOnly,true);
 });
 
 test('빈 화면 클릭은 건물·층 선택을 유지하고 카메라와 데이터를 변경하지 않는다',()=>{
@@ -112,7 +133,8 @@ test('층 수 변경은 자동 높이를 적용하고 기존 층 이름과 모�
   const {ui,get}=fixture();ui.configure();get('floors-above').value='4';get('floors-below').value='2';ui.generate();
   assert.deepEqual(Array.from(ui.draft.slots,s=>s.elevation),[9,6,3,0,-3,-6]);assert.equal(get('floors-spacing').textContent,'3 m');
   ui.draft.slots.find(s=>s.level==='2F').name='생산층';get('floors-roof').checked=true;ui.generate();
-  assert.deepEqual(Array.from(ui.draft.slots,s=>s.elevation),[12,8,4,0,-4,-8]);assert.equal(ui.draft.slots.find(s=>s.level==='2F').name,'생산층');
+  const top=Number(get('floors-roof-height').value),step=top/3;
+  assert.deepEqual(Array.from(ui.draft.slots,s=>s.elevation),[top,2*step,step,0,-step,-2*step]);assert.equal(ui.draft.slots.find(s=>s.level==='2F').name,'생산층');
   get('floors-above').value='2';ui.generate();get('floors-above').value='4';ui.generate();assert.equal(ui.draft.slots.find(s=>s.level==='2F').name,'생산층');
 });
 
@@ -175,6 +197,26 @@ test('층이 등록된 건물도 위치와 회전 편집은 유지한다',()=>{
   ui.host={elements:{namedItem:name=>get(name)}};let preview;ui.api.preview=next=>preview=next;
   ui.resize({name:'x',valueAsNumber:4});assert.equal(preview.buildings[0].x,4);assert.equal(state.buildings[0].x,0);
   ui.edit=null;ui.resize({name:'rotation',valueAsNumber:90});assert.equal(preview.buildings[0].rotation,90);assert.equal(state.buildings[0].rotation,0);
+});
+
+test('층 정보창은 이름·위치·크기·회전·기즈모 변경을 차단한다',()=>{
+  const {ui,state}=fixture();state.floors=S.registerFloors(state,'building',S.slots(2,0,false,12)).floors;
+  ui.selected=state.floors[0].id;let changes=0;ui.api.commit=ui.api.preview=()=>changes++;
+  const before=M.clone(state);ui.update({name:'변경'});ui.rotate();ui.gizmo(ui.selected,{x:99});
+  for(const name of ['x','z','rotation','width','depth','height','elevation'])ui.resize({name,valueAsNumber:99});
+  assert.equal(changes,0);assert.deepEqual(state,before);assert.ok(ui.display(state).equipment.filter(e=>S.kind(state,e.id)==='floor').every(e=>e.noGizmo));
+});
+
+test('층 삭제는 확인 전 데이터를 보존하고 확인 후 하나의 변경으로 처리하며 오래된 확인은 거부한다',()=>{
+  const {ui,state,get}=fixture();Object.assign(state,S.registerFloors(state,'building',S.slots(3,0,false,12)));
+  const floor=state.floors.find(f=>f.level==='2F');state.equipment.push({...M.create('panel',state),floorId:floor.id});
+  ui.selected=floor.id;ui.deleteDialog={open:false,showModal(){this.open=true;},close(){this.open=false;}};
+  let commits=0;ui.api.commit=next=>{commits++;Object.assign(state,next);return true;};
+  const before=M.clone(state);ui.remove();assert.equal(ui.deleteDialog.open,true);assert.deepEqual(state,before);assert.equal(commits,0);
+  assert.match(get('floor-delete-message').textContent,/설비 1개/);assert.match(get('floor-delete-message').textContent,/층 간격/);
+  ui.deleteDialog.close();assert.deepEqual(state,before);
+  ui.remove();state.buildings[0].name='다른 이름';ui.confirmFloorDelete();assert.equal(commits,0);assert.match(get('floor-delete-error').textContent,/변경/);
+  ui.remove();ui.confirmFloorDelete();assert.equal(commits,1);assert.equal(state.equipment.length,0);assert.equal(state.floors.length,2);assert.equal(ui.selected,'building');assert.equal(ui.deleteDialog.open,false);
 });
 
 test('공간 드롭 안내는 설비 대상의 소속 공간과 허용 대상을 구분한다',()=>{

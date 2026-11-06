@@ -26,10 +26,33 @@ test('상위 추가도 같은 방향으로 저장하고 순환·자기 연결·�
  for(const links of [[{from:'missing',to:'panel'}],[{from:'ess',to:'panel'},{from:'ess',to:'panel'}],[{from:'panel',to:'ess'},{from:'ess',to:'panel'}]])assert.throws(()=>M.validate({...next,powerLinks:links}));
  assert.deepEqual(Picker.change(next,['panel'],'ess','up').powerLinks,next.powerLinks);
 });
-test('계층 이동은 전력 연결을 바꾸지 않고 삭제는 해당 설비 연결만 제거한다',()=>{
- const state=Picker.change(fixture(),['ess'],'panel','down'),moved=M.moveEquipment(state,'panel','ess');assert.equal(moved.equipment.find(e=>e.id==='panel').parentId,'ess');assert.deepEqual(moved.powerLinks,state.powerLinks);assert.deepEqual(moved.networks,state.networks);
- const removed=M.removeEquipment(state,'panel');assert.ok(removed.equipment.some(e=>e.id==='pump'));assert.equal(removed.powerLinks.length,0);assert.equal(removed.networks.length,0);
+test('계층 이동은 기본 연결을 교체하고 삭제 후 승계된 계층도 자동 연결한다',()=>{
+ const state=Picker.change(fixture(),['ess'],'panel','down'),moved=M.moveEquipment(state,'panel','ess');assert.equal(moved.equipment.find(e=>e.id==='panel').parentId,'ess');assert.deepEqual(moved.powerLinks,[{from:'panel',to:'pump'},{from:'ess',to:'panel'}]);assert.deepEqual(moved.networks.find(n=>n.parentId==='ess'),state.networks.find(n=>n.parentId==='ess'));
+ const removed=M.removeEquipment(state,'panel');assert.ok(removed.equipment.some(e=>e.id==='pump'));assert.deepEqual(removed.powerLinks,[{from:'transformer',to:'pump'}]);assert.equal(removed.networks.length,1);
  const onlyEss=M.removeEquipmentGroup(state,['ess']);assert.deepEqual(onlyEss.powerLinks,L.powerLinks(fixture()));
+});
+
+test('빠진 계층 기본 연결을 기존 v4에서 복원하고 추가 연결·수동 경로를 보존한다',async()=>{
+ const state=Picker.change(fixture(),['ess'],'panel','down');
+ state.equipment.find(e=>e.id==='ess').parentId='transformer';
+ const original=M.clone(state),restored=M.validate(state);
+ assert.deepEqual(state,original);assert.ok(restored.powerLinks.some(l=>l.from==='transformer'&&l.to==='ess'));
+ assert.deepEqual(restored.networks.find(n=>n.parentId==='ess'),state.networks.find(n=>n.parentId==='ess'));
+ assert.deepEqual(L.routes(restored).filter(r=>r.parentId==='panel'),L.routes(state).filter(r=>r.parentId==='panel'));
+ assert.deepEqual(M.validate(restored),restored);
+ const file=await P.encode(restored),decoded=await P.decode(file.bytes);for(const key of ['equipment','powerLinks','networks'])assert.deepEqual(decoded.drawing[key],restored[key]);
+ assert.throws(()=>Picker.change(restored,['ess'],'transformer','up',false),/계층 기본 연결/);
+});
+
+test('계층 단일·다중 이동과 실행 취소는 기본 연결만 바꾸고 추가 연결을 유지한다',()=>{
+ const state=Picker.change(fixture(),['ess'],'pump','down'),before=M.clone(state),history=new M.History(state);
+ history.commit(M.moveEquipmentGroup(state,['panel','pump'],'ess'));
+ assert.deepEqual(history.current.powerLinks,[{from:'panel',to:'pump'},{from:'ess',to:'pump'},{from:'ess',to:'panel'}]);
+ assert.deepEqual(history.current.networks.find(n=>n.parentId==='panel'),state.networks.find(n=>n.parentId==='panel'));
+ const moved=M.clone(history.current);history.undo();assert.deepEqual(history.current,before);history.redo();assert.deepEqual(history.current,moved);
+ const detached=M.moveEquipment(moved,'panel');assert.ok(!detached.powerLinks.some(l=>l.from==='ess'&&l.to==='panel'));assert.ok(detached.powerLinks.some(l=>l.from==='ess'&&l.to==='pump'));
+ assert.deepEqual(state,before);
+ assert.throws(()=>M.moveEquipment(state,'ess','pump'),/순환/);assert.deepEqual(state,before);
 });
 test('추가 회로의 선 편집과 색상 변경은 기존 변압기 회로를 유지하며 fems·기본값에도 보존된다',async()=>{
  let state=Picker.change(fixture(),['ess'],'panel','down'),original=structuredClone(state.networks.find(n=>n.parentId==='transformer'));

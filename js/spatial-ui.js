@@ -16,6 +16,16 @@
         <div class="object-actions"><button id="space-delete" type="button" class="danger">삭제</button></div>
         <p class="dimension-note">내부 설비의 크기와 배치는 유지됩니다.</p><p id="space-warning" class="dimension-note"></p></div>`;
       document.querySelector('.inspector').append(this.host);
+      this.host.querySelector('input[name="rotation"]').closest('label').id='space-rotation-fields';
+      $('space-size-label').closest('fieldset').id='space-size-fields';
+      this.deleteDialog=document.createElement('dialog');this.deleteDialog.id='floor-delete-dialog';
+      this.deleteDialog.setAttribute('aria-labelledby','floor-delete-title');this.deleteDialog.setAttribute('aria-describedby','floor-delete-message');
+      this.deleteDialog.innerHTML='<h2 id="floor-delete-title">층을 삭제할까요?</h2><p id="floor-delete-name"></p><p id="floor-delete-message"></p><p id="floor-delete-error" class="error-message" role="alert"></p><div class="dialog-actions"><button type="button" id="floor-delete-cancel" autofocus>취소</button><button type="button" id="floor-delete-confirm" class="danger">삭제</button></div>';
+      document.body.append(this.deleteDialog);
+      this.deleteDialog.addEventListener('keydown',event=>event.stopPropagation());
+      this.deleteDialog.addEventListener('close',()=>{this.pendingFloorDelete=null;});
+      $('floor-delete-cancel').onclick=()=>this.deleteDialog.close();
+      $('floor-delete-confirm').onclick=()=>this.confirmFloorDelete();
       this.registration=document.createElement('dialog');this.registration.id='floor-registration';this.registration.setAttribute('aria-labelledby','floor-registration-title');
       this.registration.innerHTML=`<fieldset><legend>층 등록</legend><div class="property-section"><div class="field-row"><label>지상층 수<input id="floors-above" type="text" inputmode="numeric" pattern="[0-9]+" maxlength="3" value="1"></label><label>지하층 수<input id="floors-below" type="text" inputmode="numeric" pattern="[0-9]+" maxlength="3" value="0"></label></div><label class="ratio-lock"><input id="floors-roof" type="checkbox">옥상 사용</label><p class="dimension-note">옥상은 지상층 수에 포함됩니다. (지상 2층 이상)</p><div class="floor-spacing">층간 높이 <output id="floors-spacing" aria-live="polite"></output><span>자동 계산</span></div></div></fieldset><div id="floor-slots" class="property-section"></div><p id="floor-register-error" class="error-message" role="alert"></p>`;
       const controls=document.createElement('div');controls.className='floor-dialog-controls property-sections';
@@ -23,13 +33,19 @@
       const position=document.createElement('fieldset');position.id='floors-position';
       position.innerHTML='<legend>전체 층 위치 <span>m</span></legend><div class="property-section"><div class="field-row"><label>X<input id="floors-x" name="x" type="number" min="-100000" max="100000" step="any"></label><label>Z<input id="floors-z" name="z" type="number" min="-100000" max="100000" step="any"></label></div><p class="dimension-note">건물 중심 기준 · 모든 층을 함께 이동합니다.</p></div>';
       controls.prepend(position);
+      const roofHeight=document.createElement('label');roofHeight.id='floors-roof-height-label';
+      roofHeight.innerHTML='<span>옥상 바닥 높이 <span>m</span></span><input id="floors-roof-height" type="number" min="0.01" step="0.1"><span class="dimension-note">1층 기준 높이 · 다른 층과 지하층의 간격을 자동 계산합니다.</span>';
+      controls.querySelector('.floor-spacing').before(roofHeight);
+      roofHeight.querySelector('input').oninput=()=>this.generate(true);
+      roofHeight.addEventListener('number-scrub-end',event=>{if(!event.detail.commit)this.generate(true);});
+      root.FEMSNumberScrub.install(roofHeight);
       const actions=document.createElement('footer');actions.className='floor-dialog-actions';actions.innerHTML='<button id="floors-cancel" type="button">취소</button><button id="floors-apply" type="button" class="primary">층 등록 완료</button>';
       this.registration.innerHTML='<header><div><h2 id="floor-registration-title">층 등록·수정</h2><p id="floor-registration-building"></p></div><button id="floors-close" type="button" aria-label="층 등록 닫기">×</button></header><div class="floor-dialog-body"><section class="floor-dialog-preview"><div class="floor-preview-toolbar"><span>배치 미리보기</span><button id="floors-preview" type="button">미리보기 갱신</button></div><div id="floor-preview-scene"><div id="floor-preview-labels" class="equipment-labels"></div></div><p id="floor-preview-note">드래그: 이동 · 우클릭 드래그: 회전 · 휠: 확대/축소</p></section></div>';
       this.registration.querySelector('.floor-dialog-body').append(controls);this.registration.append(actions);document.body.append(this.registration);
-      const showBuilding=document.createElement('label');showBuilding.className='ratio-lock floor-preview-toggle';
-      showBuilding.innerHTML='<input id="floors-show-building" type="checkbox" checked>반투명 건물 표시';
+      const showBuilding=document.createElement('label');showBuilding.className='floor-preview-transparency';
+      showBuilding.innerHTML='<span>건물 투명도</span><input id="floors-building-transparency" type="range" min="0" max="100" step="1" value="30" aria-label="건물 투명도" title="0% 불투명 · 100% 완전 투명"><output id="floors-building-transparency-value" for="floors-building-transparency">30%</output>';
       this.registration.querySelector('.floor-preview-toolbar').after(showBuilding);
-      $('floors-show-building').onchange=()=>this.previewRegistration(false);
+      $('floors-building-transparency').oninput=()=>this.previewRegistration(false);
       this.bindFloorPosition(position);
       this.registration.addEventListener('keydown',event=>event.stopPropagation());
       this.registration.addEventListener('cancel',event=>{event.preventDefault();this.cancelRegistration();});
@@ -64,10 +80,12 @@
       const floor=this.api.state().floors.find(f=>f.id===floorId);
       this.context=floor?.buildingId?{buildingId:floor.buildingId}:{};
     }
-    enter(id,billboard=false){const leavingFloor=!!this.context.floorId;this.finish();const state=this.api.state(),k=S.kind(state,id),n=S.get(state,id);if(!k)return;this.selected=id;if(k==='building')this.context={buildingId:id};else if(billboard)this.context={buildingId:n.buildingId,floorId:id};else this.focusFloor(id);this.api.refresh();this.api.fit(this.context.buildingId&&!this.context.floorId?{preserveAngle:true,zoomInOnly:!leavingFloor}:undefined);}
+    enter(id,billboard=false){const leavingFloor=!!this.context.floorId;this.finish();const state=this.api.state(),k=S.kind(state,id),n=S.get(state,id);if(!k)return;this.selected=id;if(k==='building')this.context={buildingId:id};else if(billboard)this.context={buildingId:n.buildingId,floorId:id};else this.focusFloor(id);this.api.refresh();this.api.fit({preserveAngle:true,zoomInOnly:!!this.context.floorId||!leavingFloor});}
     choose(id,{billboard=false}={}){
       if(this.draft){this.api.toast('층 등록을 완료하거나 취소하세요.');return true;}
       if(id==='@site'){this.finish();this.selected=null;this.context={};this.api.clearEquipment();this.api.disarm();this.api.refresh();this.api.fit();return true;}
+      const rooftop=this.display(this.api.state()).equipment.find(e=>e.id===id&&e.rooftop);
+      if(rooftop){const f=this.api.state().floors.find(f=>f.id===rooftop.floorId);this.finish();this.context={buildingId:f.buildingId,floorId:f.id};this.api.refresh();this.api.fit({preserveAngle:true,zoomInOnly:true});return false;}
       if(!S.get(this.api.state(),id))return false;
       this.api.clearEquipment();this.api.disarm();this.enter(id,billboard);
       return true;
@@ -99,7 +117,7 @@
       }
     }
     cancelName(){const item=S.get(this.api.state(),this.selected);if(item)$('space-name').value=item.name;}
-    update(changes){this.attempt(()=>{const next=M.clone(this.api.state()),item=S.get(next,this.selected);if(!item)return;Object.assign(item,changes);if(this.api.commit(next))this.cancelName();});}
+    update(changes){if(S.kind(this.api.state(),this.selected)==='floor')return;this.attempt(()=>{const next=M.clone(this.api.state()),item=S.get(next,this.selected);if(!item)return;Object.assign(item,changes);if(this.api.commit(next))this.cancelName();});}
     buildingSizeLocked(){const state=this.api.state();return S.kind(state,this.selected)==='building'&&state.floors.some(f=>f.buildingId===this.selected);}
     syncSizeAvailability(){
       const locked=this.buildingSizeLocked(),hint=locked?'등록된 층이 있는 건물은 크기를 변경할 수 없습니다.':'';
@@ -108,14 +126,36 @@
     }
     resize(input){
       if(this.edit?.input!==input)this.finish();const item=S.get(this.api.state(),this.selected);if(!item)return;
+      if(S.kind(this.api.state(),item.id)==='floor'){input.value=item[input.name];return;}
       if(['width','depth','height'].includes(input.name)&&this.buildingSizeLocked()){input.value=item[input.name];return;}
       this.edit??={input,baseline:M.clone(item),state:M.clone(this.api.state()),lock:$('space-lock').checked};
       this.attempt(()=>{const next=M.clone(this.edit.state),target=S.get(next,item.id);Object.assign(target,['width','depth','height'].includes(input.name)?M.resizeDimensions(this.edit.baseline,input.name,input.valueAsNumber,this.edit.lock):{[input.name]:input.valueAsNumber});this.api.preview(next);for(const name of ['width','depth','height'])if(this.host.elements.namedItem(name)!==input)this.host.elements.namedItem(name).value=target[name];$('space-error').textContent='';});
     }
     finish(ok=true){if(!this.edit)return;this.edit=null;this.api.finish(ok);this.fill();}
-    remove(){if(!this.selected)return;this.finish();this.attempt(()=>{const next=S.remove(this.api.state(),this.selected);this.selected=null;this.context={};this.api.commit(next,'오브젝트를 삭제했습니다. 하위 항목은 보존되며 실행 취소할 수 있습니다.');});}
+    remove(){
+      if(!this.selected)return;this.finish();const state=this.api.state(),floor=state.floors.find(f=>f.id===this.selected);
+      if(floor){
+        this.pendingFloorDelete={id:floor.id,snapshot:JSON.stringify(state)};
+        const count=state.equipment.filter(e=>e.floorId===floor.id).length;
+        $('floor-delete-name').textContent=floor.name;
+        $('floor-delete-message').textContent=`이 층에 배치된 설비 ${count}개와 해당 설비의 연결선도 함께 삭제됩니다.\n`+(floor.buildingId?'남은 층의 번호와 층 간격이 자동으로 조절됩니다.\n옥상 높이는 유지되며, 지상에 옥상만 남으면 1층으로 변경됩니다.\n':'')+'등록된 에셋은 유지됩니다. 실행 취소로 복원할 수 있습니다.';
+        $('floor-delete-error').textContent='';this.deleteDialog.showModal();return;
+      }
+      this.attempt(()=>{const next=S.remove(state,this.selected);this.selected=null;this.context={};this.api.commit(next,'오브젝트를 삭제했습니다. 하위 항목은 보존되며 실행 취소할 수 있습니다.');});
+    }
+    confirmFloorDelete(){
+      const pending=this.pendingFloorDelete;if(!pending)return;
+      if(JSON.stringify(this.api.state())!==pending.snapshot){$('floor-delete-error').textContent='프로젝트가 변경되었습니다. 닫고 다시 삭제하세요.';return;}
+      try{
+        const next=S.removeFloor(this.api.state(),pending.id),floor=S.get(this.api.state(),pending.id);
+        if(this.api.commit(next,'층과 내부 설비를 삭제하고 층 간격을 조절했습니다. 실행 취소로 복원할 수 있습니다.')){
+          this.selected=floor.buildingId||null;this.context=floor.buildingId?{buildingId:floor.buildingId}:{};
+          this.deleteDialog.close();this.api.refresh();
+        }
+      }catch(error){$('floor-delete-error').textContent=error.message;}
+    }
     rotate(){const item=S.get(this.api.state(),this.selected);if(item){this.update({rotation:(item.rotation+90)%360});return true;}return false;}
-    gizmo(id,pos){const next=M.clone(this.api.state()),item=S.get(next,id);if(!item)return false;Object.assign(item,pos);this.attempt(()=>this.api.preview(next));this.fill();return true;}
+    gizmo(id,pos){const next=M.clone(this.api.state()),item=S.get(next,id);if(!item)return false;if(S.kind(next,id)==='floor')return true;Object.assign(item,pos);this.attempt(()=>this.api.preview(next));this.fill();return true;}
     place(type,x,z){const def=C.get(type);if(!['building','floor'].includes(def.kind))return false;this.attempt(()=>{const next=S.upgrade(this.api.state()),item=S.create(next,def,x,z);next[def.kind==='building'?'buildings':'floors'].push(item);this.context={};this.selected=item.id;this.api.clearEquipment();this.api.commit(next,def.name+'을(를) 대지에 배치했습니다.');this.api.disarm();});return true;}
     dropInfo(ids,parentId){
       const state=this.api.state(),list=Array.isArray(ids)?ids:[ids],kinds=list.map(id=>S.kind(state,id)),target=S.kind(state,parentId),site=!parentId||parentId==='@site';
@@ -167,8 +207,11 @@
       this.draft={buildingId:id,slots:old.map(f=>({level:f.level||f.name,name:f.name,elevation:f.elevation,floorId:f.id,targetId:f.id,position:{x:f.x,z:f.z},size:{width:f.width,depth:f.depth,height:f.height}})),cache:new Map(),above:old.length?above:1,roof,position:{x:old.length?(Math.min(...old.map(f=>f.x))+Math.max(...old.map(f=>f.x)))/2:0,z:old.length?(Math.min(...old.map(f=>f.z))+Math.max(...old.map(f=>f.z)))/2:0}};
       this.syncFloorPosition();
       this.draft.pendingFloorId=pendingFloorId;
-      $('floors-show-building').checked=true;
+      $('floors-building-transparency').value='30';
       $('floors-above').value=String(this.draft.above);$('floors-below').value=String(Math.max(0,...old.map(f=>/^B(\d+)$/.exec(f.level)?.[1]||0)));$('floors-roof').checked=roof;
+      const roofFloor=old.find(f=>f.level==='R'),building=S.get(state,id);
+      $('floors-roof-height').value=String(building.roofElevation??Math.max(.01,Math.floor((roofFloor?roofFloor.elevation+S.floorSurface(roofFloor):building.height-.184)*10000)/10000));
+      $('floors-roof-height').max=String(building.height);
       for(const name of ['floors-above','floors-below'])$(name).dataset.integerValue=$(name).value;
       $('floor-registration-building').textContent=S.get(state,id).name;
       this.registration.showModal();this.registration.querySelector('.floor-dialog-controls').scrollTop=0;this.generate();this.api.refresh();
@@ -178,14 +221,17 @@
       if(input.value)input.value=String(Number(input.value));input.dataset.integerValue=input.value;
       this.generate();
     }
-    generate(){
+    generate(preserveSizes=false){
       $('floors-apply').disabled=true;
       $('floors-spacing').textContent='—';
       if(!$('floors-above').value||!$('floors-below').value){$('floors-spacing').textContent='—';return;}
       this.attempt(()=>{
         const above=+$('floors-above').value,below=+$('floors-below').value,building=S.get(this.api.state(),this.draft.buildingId);
         $('floors-roof').disabled=above<2;if(above<2)$('floors-roof').checked=false;
-        const roof=$('floors-roof').checked,list=S.slots(above,below,roof,building.height),cache=this.draft.cache;
+        const roof=$('floors-roof').checked;
+        $('floors-roof-height-label').hidden=!roof;$('floors-roof-height').disabled=!roof;
+        if(roof&&!this.draft.roof&&!preserveSizes){const prior=this.draft.slots.find(s=>s.level===above+'F'),item=S.floorDraftItem(this.api.state(),this.draft.buildingId,prior||{level:'R'});$('floors-roof-height').value=String(Math.max(.01,building.height-item.height+S.floorSurface(item)));}
+        const top=roof?Number($('floors-roof-height').value):null,list=S.slots(above,below,roof,building.height,top),cache=this.draft.cache;
         for(const slot of this.draft.slots)cache.set(slot.level,{...slot});
         // Changing the top floor into a roof must retain its assigned model and equipment.
         if(roof!==this.draft.roof&&above===this.draft.above){
@@ -193,12 +239,13 @@
           if(prior){cache.set(to,{...prior,name:prior.name===from||prior.name==='옥상'?(roof?'옥상':to):prior.name});cache.delete(from);}
         }
         const entries=list.map(slot=>{const prior=cache.get(slot.level);return {...slot,position:{...this.draft.position},...(prior?{name:prior.name,floorId:prior.floorId,targetId:prior.targetId,model:prior.model,size:prior.size,locked:prior.locked,position:prior.position||{...this.draft.position}}:{})};});
-        this.draft.slots=S.fitFloorSlots(this.api.state(),this.draft.buildingId,entries);
+        if(preserveSizes){S.registerFloors(this.api.state(),this.draft.buildingId,entries);this.draft.slots=entries;}
+        else this.draft.slots=S.fitFloorSlots(this.api.state(),this.draft.buildingId,entries);
         this.positionEditReset?.();
         this.draft.above=above;this.draft.roof=roof;
-        const spacing=building.height/Math.max(1,above-(roof?1:0));
+        const spacing=(roof?top:building.height)/Math.max(1,above-(roof?1:0));
         $('floors-spacing').textContent=Number(spacing.toFixed(4))+' m';
-        this.renderSlots();this.previewRegistration();
+        this.renderSlots();this.previewRegistration(!preserveSizes);
       });
     }
     renderSlots(){
@@ -292,13 +339,16 @@
       $('floors-apply').disabled=true;this.attempt(()=>{this.draft.slots=S.fitFloorSlots(this.api.state(),this.draft.buildingId,this.draft.slots);this.renderSlots();this.previewRegistration(false);});
     }
     previewRegistration(fit=true){
+      const transparency=Math.max(0,Math.min(100,Number($('floors-building-transparency').value)));
+      $('floors-building-transparency-value').textContent=transparency+'%';
       $('floors-apply').disabled=true;
       if(!$('floors-above').value||!$('floors-below').value)return;
       this.attempt(()=>{
         $('floor-register-error').textContent='';
-        S.slots(+$('floors-above').value,+$('floors-below').value,$('floors-roof').checked,S.get(this.api.state(),this.draft.buildingId).height);
+        const generated=S.slots(+$('floors-above').value,+$('floors-below').value,$('floors-roof').checked,S.get(this.api.state(),this.draft.buildingId).height,$('floors-roof').checked?Number($('floors-roof-height').value):null);
+        if(generated.find(s=>s.level==='R')?.surfaceElevation!==this.draft.slots.find(s=>s.level==='R')?.surfaceElevation)throw new Error('옥상 높이를 확인하세요. 다른 층과 겹치지 않는 높이를 입력하세요.');
         const next=M.validate(S.registerFloors(this.api.state(),this.draft.buildingId,this.draft.slots)),view=S.view(next,{buildingId:this.draft.buildingId,preview:true});
-        view.hideGround=true;view.equipment=view.equipment.filter(e=>$('floors-show-building').checked||!e.buildingShell).map(e=>({...e,noGizmo:true}));
+        view.hideGround=true;view.equipment=view.equipment.map(e=>({...e,noGizmo:true,...(e.buildingShell?{previewOpacity:1-transparency/100}:{})}));
         if(!this.previewScene){const noop=()=>{};this.previewScene=new root.FEMSScene($('floor-preview-scene'),$('floor-preview-labels'),{select:noop,place:noop,move:noop,gizmoStart:noop,gizmoPreview:noop,gizmoEnd:noop,error:message=>{$('floor-preview-note').textContent=message;}});}
         const selected=next.floors.find(f=>f.buildingId===this.draft.buildingId&&f.level===this.draft.selectedLevel)?.id||null;
         this.previewScene.setState(view,selected,new Set());this.previewScene.resize();if(fit)this.previewScene.fit();$('floor-register-error').textContent='';
@@ -308,7 +358,7 @@
     closeRegistration(){this.registration.close();if(this.previewScene)this.previewScene.setState({...S.view(this.api.state(),{}),equipment:[],hideConnections:true},null,new Set());}
     cancelRegistration(){if(!this.draft)return;this.draft=null;this.closeRegistration();this.api.refresh();}
     reset(){this.finish();this.powerPicker?.close();this.selected=null;this.context={};this.draft=null;this.closeRegistration();}
-    display(state){return S.view(state,this.context);}
+    display(state){const view=S.view(state,this.context);view.equipment=view.equipment.map(e=>S.kind(state,e.id)==='floor'?{...e,noGizmo:true}:e);return view;}
     fill(){const item=S.get(this.api.state(),this.selected);if(!item)return;for(const name of ['x','z','rotation','width','depth','height','elevation']){const input=this.host.elements.namedItem(name);if(input!==document.activeElement)input.value=item[name]??0;}if(document.activeElement!==$('space-name'))$('space-name').value=item.name;}
     render(preserve=false){
       const state=this.api.state();if(this.selected&&!S.get(state,this.selected))this.selected=null;
@@ -320,11 +370,14 @@
       if(item){
         this.syncSizeAvailability();
         const def=C.get(item.type),building=k==='building';
+        this.host.classList.toggle('floor-readonly',!building);
+        $('space-name').readOnly=!building;$('space-name').title=building?'Enter로 적용 · Esc 또는 다른 곳 클릭으로 취소':'층 등록·수정에서 변경할 수 있습니다.';
+        for(const name of ['x','z'])this.host.elements.namedItem(name).readOnly=!building;
         $('space-selection-type').textContent=building?'건물':'층';
         $('space-selection-en').textContent=building?'Building':'Floor';
         $('space-selection-description').textContent=def?.missing?def.description:building?'층과 설비가 배치되는 건물입니다. 층 이름표를 선택하여 해당 층으로 이동합니다.':'건물 내부의 설비를 배치하는 공간입니다. 이 층에 배치된 설비를 관리합니다.';
         $('space-selection-icon').innerHTML='<span class="equipment-icon"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="'+(building?'M6 29V5h20v24M3 29h26M11 29v-7h10v7M11 10h2m6 0h2M11 15h2m6 0h2':'M3 13 16 6l13 7-13 7zM3 18l13 7 13-7M3 23l13 7 13-7')+'"/></svg></span>';
-        $('space-name-label').textContent=k==='building'?'건물 이름':'층 이름';$('space-size-label').textContent=k==='building'?'건물 크기':'층 크기';$('space-elevation-label').hidden=k!=='floor';$('space-building-actions').hidden=k!=='building';$('space-floor-actions').hidden=k!=='floor';$('space-detach').disabled=!item.buildingId;
+        $('space-name-label').textContent=k==='building'?'건물 이름':'층 이름';$('space-size-label').textContent=k==='building'?'건물 크기':'층 크기';$('space-elevation-label').hidden=k!=='floor';this.host.elements.namedItem('elevation').disabled=!!item.buildingId;this.host.elements.namedItem('elevation').title=item.buildingId?'층 등록·수정에서 옥상 바닥 높이를 설정하면 자동 계산됩니다.':'';$('space-building-actions').hidden=k!=='building';$('space-floor-actions').hidden=k!=='floor';$('space-detach').disabled=!item.buildingId;
         $('space-warning').textContent=S.warnings(state).join('\n');if(!preserve&&!this.edit)this.fill();
       }
       const navigation=button('',()=>this.back()),inside=!!(this.context.buildingId||this.context.floorId);

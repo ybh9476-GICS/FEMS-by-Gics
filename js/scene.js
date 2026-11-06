@@ -24,14 +24,15 @@
     }
     styleSpatial(model,item){
       // GLB instances share cached materials: clone only the display overrides, never mutate the asset.
+      const opaqueFloor=!!(item&&(item.type==='space-floor'||this.state?.floors?.some(f=>f.id===item.id)));
       model.traverse(part=>{if(!part.material)return;
         if(item?.buildingShell||item?.floorSelector){if(part.userData.spatialShadow===undefined)part.userData.spatialShadow=part.castShadow;part.castShadow=false;}
         else if(part.userData.spatialShadow!==undefined){part.castShadow=part.userData.spatialShadow;delete part.userData.spatialShadow;}
         const faded=item?.preview||item?.backdrop||item?.floorSelector;
-        if(faded&&!part.userData.spatialOriginal){part.userData.spatialOriginal=part.material;part.material=Array.isArray(part.material)?part.material.map(m=>m.clone()):part.material.clone();}
+        if((opaqueFloor||faded)&&!part.userData.spatialOriginal){part.userData.spatialOriginal=part.material;part.material=Array.isArray(part.material)?part.material.map(m=>m.clone()):part.material.clone();}
         if(part.userData.spatialOriginal){
-          if(!faded){for(const m of [].concat(part.material))m.dispose();part.material=part.userData.spatialOriginal;delete part.userData.spatialOriginal;}
-          else for(const m of [].concat(part.material)){m.transparent=true;m.opacity=item.buildingShell?.08:item.floorSelector?.3:item.backdrop?.3:.5;m.depthWrite=false;}
+          if(!opaqueFloor&&!faded){for(const m of [].concat(part.material))m.dispose();part.material=part.userData.spatialOriginal;delete part.userData.spatialOriginal;}
+          else for(const m of [].concat(part.material)){m.opacity=opaqueFloor?1:item.buildingShell?(item.previewOpacity??.08):item.floorSelector?.3:item.backdrop?.3:.5;m.transparent=m.opacity<1;m.depthWrite=m.opacity===1;}
         }
       });
     }

@@ -8,6 +8,7 @@
       const visible=state.visibleEquipment||new Set(state.equipment.map(e=>e.id));
       return L.external.links(source).flatMap(link=>{
         const from=byId.get(link.from),to=byId.get(link.to);
+        if(visible.has(from.id)&&visible.has(to.id))return [];
         if(!!from.floorId===!!to.floorId)return [];
         const incoming=!from.floorId,site=incoming?from:to,inside=incoming?to:from;
         const floor=source.floors?.find(f=>f.id===inside.floorId),building=source.buildings?.find(b=>b.id===floor?.buildingId);
@@ -58,7 +59,7 @@
       return gaps;
     }
     static crossSpaceRoutes(state){
-      if(state.hideConnections||!state.connectionFrames||!state.focusBounds)return [];
+      if(state.hideConnections||!state.connectionFrames||state.scopeFloorId)return [];
       const source=state.connectionSource||state,shown=new Set(state.equipment.map(e=>e.id));
       return L.external.links(source).filter(l=>shown.has(l.from)&&shown.has(l.to)).map(l=>L.external.route(source,L.external.idFor(l.from,l.to)));
     }

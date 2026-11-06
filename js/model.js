@@ -86,7 +86,7 @@
       if(!['new','file'].includes(p.kind)||typeof p.baseRevision!=='string'||(p.baseRevision!==''&&!/^[a-f0-9]{64}$/.test(p.baseRevision)))throw new Error('프로젝트 정보가 올바르지 않습니다.');
       result.project={id:text(p.id,'프로젝트 ID'),kind:p.kind,baseRevision:p.baseRevision,assets:F.manifest({version:1,assets:p.assets})};
     }
-    return result;
+    return L.restoreHierarchy(result);
   }
   function removeAsset(state, type) {
     if(!state.project?.assets.some(asset=>asset.type===type))throw new Error('삭제할 추가 설비를 찾을 수 없습니다.');
@@ -102,7 +102,7 @@
     if ((item.parentId || null) !== parentId) delete item.connection;
     if (parentId == null) delete item.parentId;
     else item.parentId = parentId;
-    return validate(L.reconcileNetworks(next));
+    return validate(L.reconcileHierarchy(next,state));
   }
   function removeEquipment(state, id) {
     const next = clone(state), item = next.equipment.find(e => e.id === id);
@@ -113,7 +113,7 @@
       else delete child.parentId;
     }
     next.equipment = next.equipment.filter(e => e.id !== id);
-    return validate(L.reconcileNetworks(next));
+    return validate(L.reconcileHierarchy(next,state));
   }
   function moveEquipment(state, id, parentId = null, referenceId = null, position = 'inside') {
     if (!['inside', 'before', 'after'].includes(position)) throw new Error('올바르지 않은 이동 위치입니다.');
@@ -151,7 +151,7 @@
     const index=position==='inside'?next.equipment.length:next.equipment.findIndex(e=>e.id===referenceId)+(position==='after'?1:0);
     next.equipment.splice(index,0,...moving);
     // Reconcile once after the complete move, so no intermediate hierarchy is saved.
-    return validate(L.reconcileNetworks(next));
+    return validate(L.reconcileHierarchy(next,state));
   }
   function empty() { return { format: FORMAT, version: 1, name: '새 FEMS 배치도', site: { width: 60, depth: 40 }, equipment: [] }; }
   function duplicateName(state, originalName) {
@@ -225,7 +225,7 @@
     for(const item of next.equipment){let parent=item.parentId;while(parent&&removed.has(parent))parent=byId.get(parent)?.parentId;
       if(parent!==item.parentId){delete item.connection;if(parent)item.parentId=parent;else delete item.parentId;}
     }
-    return validate(L.reconcileNetworks(next));
+    return validate(L.reconcileHierarchy(next,state));
   }
   function overlaps(state) {
     // Separating axis theorem: use rotated footprints, including edge-touch tolerance.

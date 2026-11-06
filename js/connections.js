@@ -251,7 +251,27 @@
     if(state.version>=4)return copy(state);
     const next=api.enableShared(state);next.powerLinks=api.powerLinks(next);next.version=4;next.buildings??=[];next.floors??=[];return next;
   };
+  // Hierarchy edges are mandatory; powerLinks also contains supplemental edges.
+  // Keep the v4 file format and existing edited networks unchanged when complete.
+  api.restoreHierarchy=state=>{
+    if(state.version<4)return state;
+    const missing=state.equipment.filter(e=>e.parentId&&!state.powerLinks.some(l=>l.from===e.parentId&&l.to===e.id));
+    if(!missing.length)return state;
+    const next=copy(state);
+    next.powerLinks=api.validatePowerLinks([...next.powerLinks,...missing.map(e=>({from:e.parentId,to:e.id}))],next.equipment);
+    return api.reconcileNetworks(next);
+  };
+  api.reconcileHierarchy=(state,before)=>{
+    const next=copy(state);
+    if(next.version>=4){
+      const current=new Map(next.equipment.map(e=>[e.id,e.parentId]));
+      const changed=before.equipment.filter(e=>e.parentId&&current.get(e.id)!==e.parentId);
+      next.powerLinks=next.powerLinks.filter(l=>!changed.some(e=>l.from===e.parentId&&l.to===e.id));
+    }
+    return api.restoreHierarchy(api.reconcileNetworks(next));
+  };
   api.changePowerLink=(state,from,to,connect=true)=>{
+    if(!connect&&state.equipment.some(e=>e.id===to&&e.parentId===from))throw new Error('계층 기본 연결입니다. 계층구조에서 상위 설비를 변경하세요.');
     const next=api.upgradePower(state);
     next.powerLinks=next.powerLinks.filter(link=>link.from!==from||link.to!==to);
     if(connect)next.powerLinks.push({from,to});

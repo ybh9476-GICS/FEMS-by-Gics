@@ -15,6 +15,31 @@ test('기존 도면의 전력 구조·경로를 변경하지 않고 v3 공간 �
   assert.deepEqual(L.enableShared(next),next);
 });
 
+test('옥상 바닥 높이로 지상·지하층을 계산하고 저장·취소·옥상 설비의 월드 배치를 보존한다',async()=>{
+  let state=fixture();state.buildings[0].height=20;
+  const entries=S.slots(5,2,true,20,12).map(s=>({...s,size:{width:20,depth:16,height:.5}}));
+  state=M.validate(S.registerFloors(state,'building-1',entries));
+  const roof=state.floors.find(f=>f.level==='R');assert.equal(roof.elevation+S.floorSurface(roof),12);
+  assert.deepEqual(state.floors.filter(f=>f.buildingId&&f.level!=='R').map(f=>f.elevation),[9,6,3,0,-3,-6]);
+  const pv={...M.create('solar',state,2,3),floorId:roof.id};state.equipment.push(pv);
+  const history=new M.History(state),old=M.clone(state);
+  const revised=S.slots(5,2,true,20,10).map(s=>({...s,size:{width:20,depth:16,height:.5}}));history.commit(S.registerFloors(state,'building-1',revised));
+  assert.equal(history.current.equipment[0].floorId,roof.id);history.undo();assert.deepEqual(history.current,old);history.redo();assert.equal(history.current.buildings[0].roofElevation,10);
+  const encoded=await P.encode(state,async()=>glb()),decoded=await P.decode(encoded.bytes);assert.deepEqual(decoded.drawing.buildings,state.buildings);assert.deepEqual(decoded.drawing.floors,state.floors);
+  for(const rotation of [0,37,90]){
+    const changed=M.clone(state);Object.assign(changed.buildings[0],{rotation,x:7,z:-5});const view=S.view(changed),shown=view.equipment.find(e=>e.id===pv.id),expected=S.transform(pv,S.worldFrame(changed,roof.id));
+    assert.equal(shown.x,expected.x);assert.equal(shown.z,expected.z);assert.equal(shown.y,12);assert.ok(shown.rooftop);assert.ok(shown.noGizmo);assert.ok(!view.equipment.some(e=>e.id===roof.id));
+    assert.equal(S.view(changed,{buildingId:'building-1'}).equipment.filter(e=>e.id===pv.id).length,1);
+    const inside=S.view(changed,{floorId:roof.id});assert.ok(inside.equipment.some(e=>e.id===roof.id));assert.equal(inside.equipment.find(e=>e.id===pv.id).y,S.floorSurface(roof));
+  }
+  assert.deepEqual(state,old);
+  const resized=M.clone(state);resized.floors.find(f=>f.id===roof.id).height=.8;
+  const normalized=M.validate(resized),updatedRoof=normalized.floors.find(f=>f.id===roof.id);assert.equal(updatedRoof.elevation+S.floorSurface(updatedRoof),12);
+  const tooTall=M.clone(state);tooTall.floors.find(f=>f.level==='3F').height=10;assert.throws(()=>M.validate(tooTall),/겹치/);
+  assert.throws(()=>S.registerFloors(state,'building-1',S.slots(5,0,true,20,1).map(s=>({...s,size:{width:20,depth:16,height:.5}}))),/겹치/);
+  assert.throws(()=>S.slots(5,0,true,20,21),/옥상 바닥/);
+});
+
 test('층 중앙 배치는 설비 간격·회전·크기와 함께 내부 연결 경로를 이동하고 같은 층 재드롭은 유지한다',()=>{
   let state=fixture();const a=M.create('panel',state,10,5),b=M.create('panel',state,14,9);state.equipment.push(a,b);state=M.reparent(state,b.id,a.id);
   const ids=[a.id,b.id],before=M.clone(state),base=S.moveEquipment(state,ids,'floor-1'),next=M.validate(S.moveEquipment(state,ids,'floor-1',true));
@@ -98,6 +123,37 @@ test('건물·층 삭제는 하위 데이터를 보존하고 바닥으로 이동
 test('층 밖 설비는 모델 축소 후에도 보존하고 경고한다',()=>{
   const s=fixture(),e=M.create('panel',s,10,5);e.floorId='floor-1';s.equipment.push(e);s.floors[0].width=5;
   const valid=M.validate(s);assert.equal(valid.equipment.length,1);assert.ok(S.warnings(valid).some(s=>s.includes('층 영역 밖')));
+});
+
+test('층 명시 삭제는 소속 설비와 연결만 제거하고 남은 층을 재배치하며 한 번에 복원된다',async()=>{
+  let s=fixture();s.floors=[];s=L.upgradePower(S.registerFloors(s,'building-1',S.slots(5,2,true,12,10).map(slot=>({...slot,size:{width:20,depth:16,height:.2}}))));
+  const removed=s.floors.find(f=>f.level==='2F'),kept=s.floors.find(f=>f.level==='3F');kept.name='생산실';
+  const a={...M.create('panel',s),floorId:removed.id};s.equipment.push(a);
+  const b={...M.create('ups',s),floorId:removed.id,parentId:a.id};s.equipment.push(b);
+  const c={...M.create('panel',s),floorId:kept.id};s.equipment.push(c);
+  const site=M.create('tower',s);s.equipment.push(site);
+  s=M.validate(s);s=L.changePowerLink(s,site.id,a.id,true);s=L.changePowerLink(s,site.id,c.id,true);
+  const before=M.clone(s),history=new M.History(s);history.commit(S.removeFloor(s,removed.id));const next=history.current;
+  assert.deepEqual(s,before);assert.deepEqual(next.equipment.map(e=>e.id),[c.id,site.id]);
+  assert.ok(next.powerLinks.every(l=>![a.id,b.id].includes(l.from)&&![a.id,b.id].includes(l.to)));assert.ok(next.powerLinks.some(l=>l.from===site.id&&l.to===c.id));
+  assert.equal(next.floors.find(f=>f.id===kept.id).name,'생산실');assert.equal(next.floors.find(f=>f.id===kept.id).level,'2F');
+  assert.equal(next.floors.find(f=>f.id===kept.id).elevation,10/3);assert.equal(next.floors.find(f=>f.level==='B2').elevation,-20/3);
+  assert.equal(next.buildings[0].roofElevation,10);assert.deepEqual(next.project.assets,before.project.assets);
+  assert.deepEqual(next.equipment.find(e=>e.id===c.id),before.equipment.find(e=>e.id===c.id));
+  const encoded=await P.encode(next,async()=>glb()),decoded=await P.decode(encoded.bytes);assert.deepEqual(decoded.drawing.floors,next.floors);
+  history.undo();assert.deepEqual(history.current,before);history.redo();assert.deepEqual(history.current,next);
+});
+
+test('옥상·지하층·마지막 층 삭제와 독립 층 삭제는 층 슬롯과 에셋을 일관되게 유지한다',()=>{
+  let s=fixture();s.floors=[];s=M.validate(S.registerFloors(s,'building-1',S.slots(4,2,true,12,10).map(slot=>({...slot,size:{width:20,depth:16,height:.2}}))));
+  let next=S.removeFloor(s,s.floors.find(f=>f.level==='R').id);
+  assert.equal(next.buildings[0].roofElevation,undefined);assert.deepEqual(next.floors.filter(f=>!f.level.startsWith('B')).map(f=>f.elevation),[8,4,0]);
+  next=S.removeFloor(next,next.floors.find(f=>f.level==='B1').id);assert.equal(next.floors.find(f=>f.level==='B1').elevation,-4);assert.ok(!next.floors.some(f=>f.level==='B2'));
+  for(const f of [...next.floors])next=S.removeFloor(next,f.id);assert.equal(next.floors.length,0);assert.equal(next.buildings.length,1);
+  const pair=M.validate(S.registerFloors(next,'building-1',S.slots(2,0,true,12,10).map(slot=>({...slot,size:{width:20,depth:16,height:.2}}))));
+  const last=S.removeFloor(pair,pair.floors.find(f=>f.level==='1F').id);assert.equal(last.floors[0].level,'1F');assert.equal(last.floors[0].elevation,0);assert.equal(last.buildings[0].roofElevation,undefined);
+  const free=fixture(),e={...M.create('panel',free),floorId:'floor-1'};free.equipment.push(e);
+  const empty=S.removeFloor(free,'floor-1');assert.equal(empty.equipment.length,0);assert.equal(empty.floors.length,0);assert.deepEqual(empty.project.assets,free.project.assets);
 });
 test('손상된 공간 참조·ID·층 번호·치수는 거부한다',()=>{
   const s=fixture();for(const mutate of [s=>s.floors[0].buildingId='missing',s=>s.floors[0].id=s.buildings[0].id,s=>s.buildings[0].height=NaN,s=>s.floors[0].elevation=Infinity,s=>s.equipment.push({...M.create('panel',s),floorId:'missing'})]){const bad=M.clone(s);mutate(bad);assert.throws(()=>M.validate(bad));}

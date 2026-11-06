@@ -4,6 +4,17 @@ const context={console,performance,FEMSModel:M,FEMSConnections:L};context.window
 for(const file of ['vendor/three.js','js/equipment-3d.js','js/connection-view.js'])vm.runInContext(fs.readFileSync(file,'utf8'),context);
 const T=context.THREE;
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-6,`${a} != ${b}`);
+
+test('대지 옥상 설비와 연결선은 같은 월드 높이를 사용하고 외벽 선을 중복 표시하지 않는다',()=>{
+  let state=fixture();state.floors[1].level='R';state=L.changePowerLink(state,'out','c');
+  const before=JSON.stringify(state),display=S.view(state),view=new context.FEMSConnectionView(new T.Scene());view.setState(display);
+  assert.ok(!display.equipment.some(e=>e.id==='f2'));assert.ok(!display.equipment.some(e=>e.id==='a'));
+  const internal=view.lines.find(l=>l.parentId==='c'),external=view.lines.find(l=>l.id===L.external.idFor('out','c'));
+  assert.ok(internal.readOnly);near(internal.height,7+.5*.08+.08+internal.diameter/2);
+  assert.ok(external);assert.ok(!external.buildingEntry);assert.equal(view.lines.filter(l=>l.id===external.id).length,1);
+  const target=display.equipment.find(e=>e.id==='c');near(external.points.at(-1).y,target.y+.08+external.diameter/2);
+  assert.equal(JSON.stringify(state),before);
+});
 test('대지 연결은 회전·이동·크기를 반영한 건물 외벽에서 끝나며 전력 방향과 원본을 보존한다',()=>{
   for(const rotation of [0,37,90,157])for(const incoming of [true,false]){
     let state=fixture();Object.assign(state.buildings[0],{rotation,width:34,depth:28,x:22,z:-8});

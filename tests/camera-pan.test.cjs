@@ -10,6 +10,18 @@ for (const file of ['vendor/three.js', 'js/scene.js']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), context);
 }
 const T = context.THREE, Scene = context.FEMSScene;
+test('층 내부·층 선택·미리보기 바닥과 벽은 불투명하고 공유 GLB 재질은 보존한다',()=>{
+  const {scene}=fixture('3d');scene.state.floors=[{id:'custom-floor'}];
+  for(const item of [{type:'space-floor',backdrop:true},{type:'space-floor',floorSelector:true},{id:'custom-floor',type:'asset-floor',floorSelector:true},{id:'custom-floor',type:'asset-floor',backdrop:true}]){
+    const original=new T.MeshStandardMaterial({transparent:true,opacity:.4,depthWrite:false}),group=new T.Group();
+    group.add(new T.Mesh(new T.BoxGeometry(),original),new T.Mesh(new T.BoxGeometry(),[original,original]));
+    scene.styleSpatial(group,item);
+    group.traverse(part=>{for(const material of [].concat(part.material||[])){assert.notEqual(material,original);assert.equal(material.transparent,false);assert.equal(material.opacity,1);assert.equal(material.depthWrite,true);}});
+    assert.equal(original.opacity,.4);assert.equal(original.transparent,true);assert.equal(original.depthWrite,false);
+    scene.styleSpatial(group,null);assert.equal(group.children[0].material,original);assert.equal(group.children[1].material[0],original);
+    group.children.forEach(part=>part.geometry.dispose());original.dispose();
+  }
+});
 test('건물 확대는 현재 3D·평면도 회전각을 유지하고 가까이 있을 때 축소하지 않는다',()=>{
   for(const mode of ['3d','plan'])for(const yaw of [-1.2,2.4]){
     const {scene}=fixture(mode);Object.assign(scene,{yaw,planYaw:yaw,pitch:.35,radius:200});scene.updateCamera();
@@ -21,6 +33,11 @@ test('건물 확대는 현재 3D·평면도 회전각을 유지하고 가까이 
     assert.deepEqual([scene.target.x,scene.target.y,scene.target.z],[30,6,-20]);
     for(const x of [20,40])for(const z of [-28,-12])for(const y of [0,12]){const p=new T.Vector3(x,y,z).project(scene.camera);assert.ok(Math.abs(p.x)<=1&&Math.abs(p.y)<=1);}
     scene.radius=10;scene.fit({preserveAngle:true,zoomInOnly:true});assert.equal(scene.radius,10);
+    scene.state.focusBounds=null;scene.state.scopeFloorId='floor';scene.state.site={width:20,depth:16};
+    scene.state.equipment=[{x:0,z:0,y:0,height:1}];scene.radius=200;
+    scene.fit({preserveAngle:true,zoomInOnly:true});
+    assert.equal(scene.yaw,yaw);assert.equal(scene.planYaw,yaw);assert.equal(scene.pitch,.35);assert.ok(scene.radius<200);
+    assert.ok(direction.distanceTo(scene.camera.getWorldDirection(new T.Vector3()))<1e-6);
     scene.fit();assert.equal(scene.yaw,.6);assert.equal(scene.pitch,.77);assert.equal(scene.planYaw,0);
   }
 });
@@ -244,6 +261,8 @@ for(const mode of ['3d','plan'])test(`${mode}: 층 형상은 호버·선택에�
 test('건물 투명 표시는 공유 GLB 재질과 그림자 원본을 보존하고 복원한다',()=>{
   const {scene}=fixture('3d'),material=new T.MeshStandardMaterial(),mesh=new T.Mesh(new T.BoxGeometry(),material);mesh.castShadow=true;
   scene.styleSpatial(mesh,{backdrop:true,buildingShell:true});assert.notEqual(mesh.material,material);assert.equal(material.opacity,1);assert.equal(mesh.material.opacity,.08);assert.equal(mesh.material.depthWrite,false);assert.equal(mesh.castShadow,false);
+  for(const opacity of [1,.7,0,.35]){scene.styleSpatial(mesh,{backdrop:true,buildingShell:true,previewOpacity:opacity});assert.equal(mesh.material.opacity,opacity);assert.equal(mesh.material.transparent,opacity<1);assert.equal(mesh.material.depthWrite,opacity===1);assert.equal(material.opacity,1);}
+  scene.styleSpatial(mesh,{backdrop:true,buildingShell:true});assert.equal(mesh.material.opacity,.08);
   scene.styleSpatial(mesh,null);assert.equal(mesh.material,material);assert.equal(mesh.castShadow,true);material.dispose();mesh.geometry.dispose();
 });
 test('평면도의 겹친 층 이름표는 분리되고 이름 숨김 상태에서도 층 진입이 가능하다',()=>{

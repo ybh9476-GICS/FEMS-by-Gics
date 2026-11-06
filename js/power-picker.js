@@ -59,6 +59,7 @@
           const li=document.createElement('li'),path=document.createElement('span'),remove=document.createElement('button');
           path.textContent=ids.length>1?paths.get(link.from)+' → '+paths.get(link.to):paths.get(direction==='up'?link.from:link.to);path.title=paths.get(link.from)+' → '+paths.get(link.to);
           remove.type='button';remove.textContent='해제';remove.setAttribute('aria-label',path.title+' 연결 해제');
+          if(state.equipment.some(e=>e.id===link.to&&e.parentId===link.from)){remove.disabled=true;remove.textContent='계층 연결';remove.title='계층구조에서 상위 설비를 변경하면 기본 연결도 변경됩니다.';}
           remove.onclick=()=>this.apply(link.to,[link.from],'down',false);li.append(path,remove);list.append(li);
         }
       }
