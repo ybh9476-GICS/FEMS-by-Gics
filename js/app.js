@@ -66,7 +66,7 @@
       localStorage.setItem(key,raw);localStorage.setItem(M.STORAGE_KEY,JSON.stringify(upgraded));history.current=upgraded;
     }catch(error){autosaveAllowed=false;startupMessage='전력 연결 구조 변환을 완료하지 못해 원본을 유지합니다. 자동 저장을 중지했습니다. '+error.message;}
   }
-  let groupGizmoEdit=null;
+  let groupGizmoEdit=null,singleGizmoState=null;
   let propertyEdit = null,groupFrame=null,groupRatioLock=null,nameDraft=null,projectSelected=false,projectNameDraft=false;
   function cancelProjectNameEdit(){
     if(!projectNameDraft)return;projectNameDraft=false;
@@ -139,16 +139,17 @@
     }
     if (propertyEdit && propertyEdit.input !== input) finishPropertyEdit();
     if (!propertyEdit) propertyEdit = { input, id: selected,
+      state: M.clone(history.current),
       baseline: M.clone(history.current.equipment.find(item => item.id === selected)),
       lockRatio: $('lock-ratio').checked };
     try {
       if (!Number.isFinite(input.valueAsNumber)) throw new Error('숫자를 입력하세요. 마지막 유효한 값을 유지합니다.');
-      const next = M.clone(history.current);
+      const next = M.clone(propertyEdit.state);
       const item = next.equipment.find(item => item.id === selected);
       if (dimensionFields.includes(input.name)) {
         Object.assign(item, M.resizeDimensions(propertyEdit.baseline, input.name, input.valueAsNumber, propertyEdit.lockRatio));
       } else item[input.name] = input.valueAsNumber;
-      const changed = history.preview(next);
+      const changed = history.preview(window.FEMSConnections.followEquipment(propertyEdit.state,next));
       syncDimensions(item, input);
       input.removeAttribute('aria-invalid');
       $('property-error').textContent = '';
@@ -194,7 +195,7 @@
     }catch(error){toast(error.message);}
   }
   function add(type,x,z){if(view==='schematic')return;if(spaces?.place(type,x,z))return;if(spaces?.context.buildingId&&!spaces.context.floorId){toast('설비를 배치할 층으로 먼저 진입하세요.');return;}projectSelected=false;try{const next=M.clone(history.current),floor=next.floors?.find(f=>f.id===spaces?.context.floorId),item=M.create(type,floor?{...next,site:{width:floor.width,depth:floor.depth}}:next,x,z);if(floor)item.floorId=floor.id;next.equipment.push(item);spaces?.clear();const previous=selected;selected=item.id;if(commit(next,`${item.name}을(를) 배치했습니다.`))arm(null);else selected=previous;}catch(error){toast(error.message);}}
-  function changeSelected(changes,message){if(!selected)return;const next=M.clone(history.current);Object.assign(next.equipment.find(item=>item.id===selected),changes);return commit(next,message);}
+  function changeSelected(changes,message){if(!selected)return;const next=M.clone(history.current);Object.assign(next.equipment.find(item=>item.id===selected),changes);try{return commit(window.FEMSConnections.followEquipment(history.current,next),message);}catch(error){toast(error.message);return false;}}
   function renderInspector(){
     cancelProjectNameEdit();cancelNameEdit();
     $('project-properties').hidden=!projectSelected;
@@ -259,6 +260,7 @@
   function startGizmo(){
     finishPropertyEdit();spaces?.finish();
     groupGizmoEdit=!spaces?.selected&&selectedIds.length>1?{state:M.clone(history.current),ids:[...selectedIds],frame:{...currentGroup()}}:null;
+    singleGizmoState=!spaces?.selected&&!groupGizmoEdit?M.clone(history.current):null;
   }
   function previewGizmo(id, pos) {
     if(id==='@selection'&&groupGizmoEdit){
@@ -271,17 +273,18 @@
       return;
     }
     if(spaces?.gizmo(id,pos))return;
-    const next=M.clone(history.current), item=next.equipment.find(e=>e.id===id);
+    const baseline=singleGizmoState||history.current,next=M.clone(baseline), item=next.equipment.find(e=>e.id===id);
     if(!item)return;
     Object.assign(item,pos);
     try {
-      if(history.preview(next)){
+      if(history.preview(window.FEMSConnections.followEquipment(baseline,next))){
         for(const name of ['x','z'])$('properties').elements.namedItem(name).value=item[name];
         saveLocal();render(true);
       }
     }catch(error){$('property-error').textContent=error.message;}
   }
   function finishGizmo(commit) {
+    singleGizmoState=null;
     if(groupGizmoEdit){
       const edit=groupGizmoEdit;groupGizmoEdit=null;
       const changed=history.finishEdit(commit);if(!commit)groupFrame=edit.frame;
@@ -298,7 +301,7 @@
     if(changed)toast(commit?'설비 위치를 변경했습니다.':'설비 이동을 취소했습니다.');
   }
   $('gizmo-rotate').addEventListener('click',rotate);
-  try{scene=new window.FEMSScene($('scene'),$('labels'),{select:selectInScene,navigateEquipment:id=>{const target=history.current.equipment.find(e=>e.id===id),floor=history.current.floors?.find(f=>f.id===target?.floorId);if(!target)return;if(spaces)spaces.context=floor?{floorId:floor.id,buildingId:floor.buildingId}:{};select(id);scene?.fit();const item=scene?.state?.equipment.find(e=>e.id===id);if(item){scene.target.set(item.x,(item.y||0)+item.height/2,item.z);scene.updateCamera();}},selectLabel:(id,event)=>selectInScene(id,event,true),place:add,move:(id,pos)=>{selected=id;changeSelected(pos,'설비 위치를 변경했습니다.');},gizmoStart:startGizmo,gizmoPreview:previewGizmo,gizmoEnd:finishGizmo,connectionSelect:hit=>{spaces?.clear();finishPropertyEdit();projectSelected=false;selected=null;selectedIds=[];links.select(hit);render();},connectionStart:hit=>links.start(hit),connectionPreview:(pos,options)=>links.preview(pos,options),connectionEnd:ok=>links.finish(ok),error:graphicsError},$('gizmo-rotate'));}
+  try{scene=new window.FEMSScene($('scene'),$('labels'),{select:selectInScene,navigateEquipment:id=>{const target=history.current.equipment.find(e=>e.id===id),floor=history.current.floors?.find(f=>f.id===target?.floorId);if(!target)return;if(spaces)spaces.context=floor?{floorId:floor.id,buildingId:floor.buildingId}:{};select(id);scene?.fit();const item=scene?.state?.equipment.find(e=>e.id===id);if(item){scene.target.set(item.x,(item.y||0)+item.height/2,item.z);scene.updateCamera();}},selectLabel:(id,event)=>selectInScene(id,event,true),place:add,move:(id,pos)=>{selected=id;changeSelected(pos,'설비 위치를 변경했습니다.');},gizmoStart:startGizmo,gizmoPreview:previewGizmo,gizmoEnd:finishGizmo,connectionSelect:hit=>{spaces?.clear();finishPropertyEdit();projectSelected=false;selected=null;selectedIds=[];const selection=links.select(hit);render();return selection;},connectionStart:hit=>links.start(hit),connectionPreview:(pos,options)=>links.preview(pos,options),connectionEnd:ok=>links.finish(ok),error:graphicsError},$('gizmo-rotate'));}
   catch(error){graphicsError('3D 화면을 시작할 수 없습니다. WebGL 2를 지원하는 Edge 또는 Chrome에서 그래픽 가속을 확인하세요. 설비 목록과 속성 편집·파일 저장은 계속 사용할 수 있습니다.');}
   tree=new window.FEMSEquipmentTree($('equipment-tree'),$('equipment-search'),{select:(id,ids)=>select(id,ids,false,false,view==='schematic'&&history.current.equipment.some(e=>e.id===id)),selectProject:()=>select(null,[],true),reparent,error:toast,dropInfo:(ids,parentId)=>spaces?.dropInfo(ids,parentId)});
   schematic=new window.FEMSSchematic($('schematic'),{select:id=>select(id,id?[id]:[],false,false,true),locate:id=>{const item=history.current.equipment.find(e=>e.id===id);if(!item)return;spaces?.focusFloor(item.floorId);setView('3d');select(id,[id],false,false,true);scene?.fit({preserveAngle:true});}});
@@ -363,7 +366,7 @@
   $('new').addEventListener('click',()=>switchProject(P.attach({...M.empty(),name:'새 FEMS 프로젝트'},[],'new',defaultRevision),'새 프로젝트 · 추가 에셋 목록을 초기화했습니다. 실행 취소로 복구할 수 있습니다.'));
   let defaultSnapshot=null,defaultSaving=false;
   $('export-default').addEventListener('click',()=>{
-    spaces?.finish();finishPropertyEdit();links?.finishNumeric(true);
+    spaces?.finish();finishPropertyEdit();links?.finishNumeric(true);links?.finishAdded();
     defaultSnapshot=M.clone(history.current);
     const contents=window.FEMSDefaults.serialize(defaultSnapshot);
     $('default-source').value=contents;$('default-summary').textContent=`${history.current.name} · 설비 ${history.current.equipment.length}개 · 연결선 ${window.FEMSConnections.routes(history.current).length}개`;
@@ -396,7 +399,7 @@
   let fileBusy=false;
   $('save').addEventListener('click',async()=>{
     if(fileBusy)return;fileBusy=true;$('save').disabled=true;
-    finishPropertyEdit();links?.finishNumeric(true);const snapshot=M.clone(history.current);
+    finishPropertyEdit();links?.finishNumeric(true);links?.finishAdded();const snapshot=M.clone(history.current);
     try{const result=await window.FEMSFiles.save(snapshot,window.showSaveFilePicker?.bind(window),window.FEMSAssets.readBytes);
       for(const state of [history.current,...history.past,...history.future])if(state.project?.id===snapshot.project.id)state.project.kind='file';
       saveLocal();render();toast(`프로젝트 저장 완료 · ${(result.bytes.length/1024/1024).toFixed(1)} MB · 추가 에셋 ${result.assetCount}개`);}
@@ -413,7 +416,7 @@
       if(history.current!==beforeOpen)throw new Error('불러오는 중 작업이 변경되어 열기를 취소했습니다. 다시 열어주세요.');
       switchProject(next,file.name+'을(를) 열었습니다. 실행 취소로 이전 작업을 복원할 수 있습니다.');
     }catch(error){toast('파일을 열지 못했습니다: '+error.message);}finally{fileBusy=false;$('open').disabled=false;}});
-  document.addEventListener('keydown',event=>{if(scene?.drag?.axis||scene?.drag?.connection){if(event.key==='Escape'){event.preventDefault();scene.cancelDrag();}return;}const editing=event.target.matches('input,textarea,select,[contenteditable=true]');if(event.key==='Escape'){if(spaces?.draft){event.preventDefault();spaces.cancelRegistration();return;}links?.cancelCorner();links?.render(view);arm(null);return;}if(editing||event.isComposing)return;if(spaces?.draft){if(event.key==='Escape')spaces.cancelRegistration();return;}
+  document.addEventListener('keydown',event=>{if(scene?.drag?.axis||scene?.drag?.connection){if(event.key==='Escape'){event.preventDefault();scene.cancelDrag();}return;}const editing=event.target.matches('input,textarea,select,[contenteditable=true]');if(event.key==='Escape'){if(spaces?.draft){event.preventDefault();spaces.cancelRegistration();return;}links?.cancelAdded();links?.cancelCorner();links?.render(view);arm(null);return;}if(editing||event.isComposing)return;if(spaces?.draft){if(event.key==='Escape')spaces.cancelRegistration();return;}
     const key=event.key.toLowerCase();if((event.ctrlKey||event.metaKey)&&key==='z'){event.preventDefault();travel(event.shiftKey?'redo':'undo');}else if((event.ctrlKey||event.metaKey)&&key==='y'){event.preventDefault();travel('redo');}else if((event.ctrlKey||event.metaKey)&&key==='s'){event.preventDefault();$('save').click();}else if(!event.ctrlKey&&!event.metaKey&&!event.altKey){if(key==='r'&&view!=='schematic')rotate();else if(key==='f')fitView();else if(key==='delete')remove();else if(key==='/'){event.preventDefault();$('equipment-search').focus();}}});
   window.addEventListener('beforeunload',event=>{if((storageFailed||!autosaveAllowed)&&history.past.length){event.preventDefault();event.returnValue='';}});
   links=new window.FEMSConnectionEditor({guides:(guides,corner)=>{if(scene){scene.connectionGuides=guides;scene.cornerMode=corner;scene.invalidate();}},state:()=>history.current,commit:next=>{if(!commit(next))throw new Error('연결선 변경을 적용하지 못했습니다.');},preview:next=>{window.FEMSConnections.external.backupBeforeEdit(history.current,next,localStorage,M.STORAGE_KEY);window.FEMSConnections.floor.backupBeforeEdit(history.current,next,localStorage,M.STORAGE_KEY);if(history.preview(next)){saveLocal();render();}},finish:ok=>{if(history.finishEdit(ok))saveLocal();render();}});

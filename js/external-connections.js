@@ -120,7 +120,23 @@
   const external={backupBeforeEdit,idFor,isExternal,route,links,validate,store,setStyle,setSegmentColor,movePoint,moveSegment,addPoint,deletePoint,optimize,reset,path};
   L.external=external;
   for(const name of ['route','setStyle','setSegmentColor','movePoint','moveSegment','addPoint','deletePoint','optimize','reset'])L[name]=(state,id,...args)=>isExternal(id)?external[name](state,id,...args):base[name](state,id,...args);
-  L.finishMove=(result,id,...args)=>isExternal(id)?result:base.finishMove(result,id,...args);
+  L.finishMove=(result,id,kind='point')=>{
+    if(!isExternal(id))return base.finishMove(result,id,kind);
+    if(!result)return result;
+    const line=route(result.state,id),cleaned=L.compactPath(line.points,line.segmentColors,result.index,kind,axes);
+    return {...result,...cleaned,state:cleaned.points.length===line.points.length?result.state:store(result.state,id,cleaned.points,cleaned.segmentColors)};
+  };
+  L.followEquipment=(previous,state)=>{
+    let next=base.followEquipment(previous,state);
+    for(const saved of previous.externalRoutes||[]){
+      const id=idFor(saved.from,saved.to),old=route(previous,id),current=route(next,id);if(!old||!current)continue;
+      const start=current.points[0],end=current.points.at(-1);
+      if(same(start,old.points[0])&&same(end,old.points.at(-1)))continue;
+      const moved=L.followPath(old.points,old.segmentColors,start,end,axes),rebuilt=path(moved.points,moved.segmentColors,old.points.slice(1).map((p,i)=>direction(old.points[i],p))),cleaned=L.compactPath(rebuilt.points,rebuilt.segmentColors,0,'segment',axes);
+      next=store(next,id,cleaned.points,cleaned.segmentColors);
+    }
+    return next;
+  };
   L.editScope=(state,id)=>isExternal(id)?{rootId:id,name:route(state,id)?.label||'',ids:[id]}:base.editScope(state,id);
   L.resetScope=(state,id)=>isExternal(id)?reset(state,id):base.resetScope(state,id);
   return external;

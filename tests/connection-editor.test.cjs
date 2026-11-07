@@ -13,6 +13,36 @@ function fixture(){
 
 function confirmOptimization(elements){elements.get('connection-optimize').listeners.click();const dialog=elements.get('connection-optimize-dialog');dialog.returnValue='optimize';dialog.listeners.close();}
 
+test('새 포인트는 조작할 때까지 유지하고 선택 해제 시 정리하며 추가·이동을 한 번에 취소한다',()=>{
+  const {editor,history,initial,id}=fixture();editor.select({id,kind:'segment',index:1});editor.add();
+  assert.equal(L.route(history.current,id).points.length,5);assert.equal(history.past.length,0);
+  const hit={...editor.selection};editor.select(hit);editor.start(hit);editor.finish(true);
+  assert.equal(L.route(history.current,id).points.length,5);assert.equal(history.past.length,0);
+  editor.clear();assert.deepEqual(history.current,initial);assert.equal(history.past.length,0);
+  editor.select({id,kind:'segment',index:1});editor.add();editor.select({...editor.selection});editor.start(editor.selection);
+  editor.preview({x:3,z:0},{tolerance:0});editor.finish(true);assert.equal(history.past.length,1);
+  const line=L.route(history.current,id);assert.ok(editor.selection.index<line.points.length-1);history.undo();assert.deepEqual(history.current,initial);
+});
+
+test('새 포인트의 수치 편집 취소는 추가 전 경로와 선택으로 복귀한다',()=>{
+  const {editor,history,initial,id,elements}=fixture(),hit={id,kind:'segment',index:1};editor.select(hit);editor.add();
+  const input=elements.get('connection-x');input.id='connection-x';input.valueAsNumber=3;editor.previewNumeric(input);editor.finishNumeric(false);
+  assert.deepEqual(history.current,initial);assert.equal(editor.selection.kind,'segment');assert.equal(editor.selection.index,1);assert.equal(history.past.length,0);
+});
+
+test('직선 위 포인트가 사라지면 포함 선분을 선택하고 인접한 다른 점을 잘못 이동시키지 않는다',()=>{
+  const {editor,history,initial,id}=fixture();editor.select({id,kind:'segment',index:1});editor.add();
+  const line=L.route(history.current,id),hit={id,kind:'point',index:3},selected=editor.select(hit);
+  assert.deepEqual(history.current,initial);assert.equal(editor.selection.index,2);assert.equal(editor.selection.kind,'point');
+  assert.deepEqual(L.route(history.current,id).points[editor.selection.index],line.points[3]);
+  editor.start(selected);editor.preview({x:2,z:7},{tolerance:0});assert.deepEqual(L.route(history.current,id).points[editor.selection.index],{x:2,z:7});editor.finish(false);assert.deepEqual(history.current,initial);
+});
+
+test('사용하지 않은 추가 포인트는 Esc 취소로 도면과 기록을 남기지 않는다',()=>{
+  const {editor,history,initial,id}=fixture();editor.select({id,kind:'segment',index:1});editor.add();editor.cancelAdded();
+  assert.deepEqual(history.current,initial);assert.equal(history.past.length,0);assert.equal(editor.selection.kind,'segment');
+});
+
 test('최적화 경고는 확인 전 편집하지 않고 취소·Esc·선택 변경은 보존하며 확인 후 색상까지 실행 취소된다',()=>{
   for(const view of ['3d','plan']){
     const {editor,history,id,elements}=fixture();
@@ -119,12 +149,13 @@ test('최적화 결과는 제거 개수 또는 보존 이유를 표시하고 변
   }
 });
 
-test('외부 포인트 Y 수치 입력·드래그·취소·복원은 같은 선택을 유지한다',()=>{
+test('외부 Y 수치 입력의 직선 중간점은 정리하고 선택 선분·취소·복원을 유지한다',()=>{
  const S=require('../js/spatial.js'),{editor,history,elements}=fixture();let state=S.upgrade(L.enableShared(M.empty()));
  state.floors=[{id:'f',name:'층',x:0,z:0,rotation:0,width:20,depth:20,height:1,elevation:8}];state.equipment=[{...M.create('panel',state,-20,0),id:'from'},{...M.create('panel',state,2,3),id:'to',floorId:'f'}];state=L.changePowerLink(L.upgradePower(state),'from','to');history.commit(state);
  const id=L.external.idFor('from','to'),hit={id,kind:'point',index:1};editor.select(hit);editor.render('3d');assert.equal(elements.get('connection-y-field').hidden,false);
  const input=elements.get('connection-y');input.id='connection-y';input.valueAsNumber=5;editor.previewNumeric(input);editor.finishNumeric(true);
- assert.equal(L.route(history.current,id).points[editor.selection.index].y,5);
+ assert.equal(editor.selection.kind,'segment');
+ const cleaned=L.route(history.current,id),segment=cleaned.points.slice(editor.selection.index,editor.selection.index+2);assert.ok(Math.min(...segment.map(p=>p.y))<5&&Math.max(...segment.map(p=>p.y))>5);
  const before=M.clone(history.current);editor.start(editor.selection);editor.preview({...L.route(before,id).points[editor.selection.index],y:6},{axis:'y'});editor.finish(false);assert.deepEqual(history.current,before);
  const dialog=elements.get('connection-reset-dialog');elements.get('connection-reset').listeners.click();assert.equal(elements.get('connection-reset-external-description').hidden,false);assert.equal(elements.get('connection-reset-description').hidden,true);dialog.returnValue='restore';dialog.listeners.close();assert.equal(editor.selection.id,id);assert.equal(editor.selection.index,0);assert.deepEqual(history.current,L.resetScope(before,id));
 });

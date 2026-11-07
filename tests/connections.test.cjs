@@ -248,12 +248,12 @@ test('정렬 보조는 6px 환산 거리에서 붙고 더 넓은 해제 범위�
   assert.equal(L.route(moved.state,b.id).points[moved.index].x,1/3);
 });
 
-test('자동 정리는 이번에 생성한 중복·직선 포인트만 제거하고 수동 포인트는 보존한다',()=>{
+test('자동 정리는 기존 직선 포인트도 제거하고 사라진 선택은 포함 선분으로 옮긴다',()=>{
   const {state,b}=fixture(),points=[{x:-15,z:-6},{x:-10,z:-6},{x:-5,z:-6},{x:0,z:-6},{x:0,z:6}];
   const result={state:L.storeRoute(state,b.id,points),index:3,generated:[2]};
   const cleaned=L.finishMove(result,b.id),next=L.route(cleaned.state,b.id).points;
-  assert.deepEqual(next,[points[0],points[1],points[3],points[4]]);assert.equal(cleaned.index,2);
-  assert.deepEqual(L.finishMove({...result,index:2},b.id).state,result.state);
+  assert.deepEqual(next,[points[0],points[3],points[4]]);assert.equal(cleaned.index,1);assert.equal(cleaned.kind,'point');
+  const removed=L.finishMove({...result,index:2,generated:[]},b.id);assert.deepEqual(L.route(removed.state,b.id).points,next);assert.equal(removed.kind,'segment');assert.equal(removed.index,0);
 });
 
 test('선택 선분 네모 손잡이는 줌과 무관하게 선택되며 두 보기에서 표시하고 배치 모드에서는 숨는다',()=>{

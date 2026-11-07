@@ -245,7 +245,7 @@
         const label=additive?this.pickLabel(e):null;
         const target=e.button===0?(additive?{id:label||this.pick(e),label:!!label}:this.pickTarget(e)):{id:this.armed?null:this.pick(e)};
         this.setHover();
-        const {axis,id,link}=target;
+        const {axis,id}=target;let {link}=target;
         if(axis){
           this.handlers.gizmoStart();
           const item=this.transformItem();
@@ -256,7 +256,7 @@
           this.updateCursor();this.invalidate();canvas.setPointerCapture(e.pointerId);return;
         }
         if(link){
-          this.handlers.connectionSelect(link);this.handlers.connectionStart(link);
+          link=this.handlers.connectionSelect(link)||link;this.handlers.connectionStart(link);
           const route=root.FEMSConnections.route(this.state.connectionSource||this.state,link.id),points=route.points;
           const source=link.handle?Object.fromEntries(['x','y','z'].map(k=>[k,((points[link.index][k]||0)+(points[link.index+1][k]||0))/2])):points?.[link.index];
           const height=route.crossSpace?source.y:(this.state.connectionSurfaceY||0)+.08+route.diameter/2+(link.handle?.04:.02);

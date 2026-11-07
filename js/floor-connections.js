@@ -85,9 +85,10 @@
     const stored=store(state,id,updated);return returnsResult?{...result,state:stored}:stored;
   }
   function finishMove(result,id,kind){
-    if(!result?.generated?.length)return result;
+    if(!result)return result;
     const line=route(result.state,id),sandbox=box(line,result.state.floors.find(f=>f.id===line.floorId));
     const cleaned=base.finishMove({...result,state:sandbox},'to',kind);
+    if(JSON.stringify(cleaned.state)===JSON.stringify(sandbox))return {...result,index:cleaned.index,kind:cleaned.kind};
     return {...cleaned,state:store(result.state,id,base.route(cleaned.state,'to'))};
   }
   function movePoint(state,id,index,position){
@@ -125,6 +126,17 @@
   L.floor=api;
   for(const name of ['route','setStyle','setSegmentColor','movePoint','moveSegment','addPoint','deletePoint','optimize','reset'])L[name]=(state,id,...args)=>isPortal(id)?api[name](state,id,...args):base[name](state,id,...args);
   L.finishMove=(result,id,...args)=>isPortal(id)?finishMove(result,id,...args):base.finishMove(result,id,...args);
+  L.followEquipment=(previous,state)=>{
+    let next=base.followEquipment(previous,state);
+    for(const saved of previous.floorRoutes||[]){
+      const id=idFor(saved.from,saved.to,saved.floorId),old=route(previous,id),current=route(next,id);if(!old||!current)continue;
+      const first=old.pointKinds[0]==='equipment',index=first?0:old.points.length-1,target=first?current.points[0]:current.points.at(-1);
+      if(Math.hypot(target.x-old.points[index].x,target.z-old.points[index].z)<1e-6)continue;
+      const moved=L.followPath(old.points,old.segmentColors,first?target:old.points[0],first?old.points.at(-1):target),rebuilt=L.coloredPath(moved.points,moved.segmentColors),cleaned=L.compactPath(rebuilt.points,rebuilt.segmentColors);
+      next=store(next,id,cleaned);
+    }
+    return next;
+  };
   L.editScope=(state,id)=>isPortal(id)?{rootId:id,name:route(state,id)?.label||'',ids:[id]}:base.editScope(state,id);
   L.resetScope=(state,id)=>isPortal(id)?reset(state,id):base.resetScope(state,id);
   L.snapCandidates=(state,id)=>{

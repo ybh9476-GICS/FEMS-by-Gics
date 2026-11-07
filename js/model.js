@@ -217,7 +217,7 @@
       for(const key of dimensions)item[key]*=scale;
     }
     if(field==='x'||field==='z'||field==='rotation')pivot[field]=value;
-    return {state:validate(next),frame:pivot};
+    return {state:validate(L.followEquipment(state,next)),frame:pivot};
   }
   function alignEquipment(state, ids, direction) {
     if(!['horizontal','vertical'].includes(direction))throw new Error('올바른 정렬 방향을 선택하세요.');
@@ -232,7 +232,7 @@
     const target=Math.max(-size/2+extent,Math.min(size/2-extent,center));
     const next=clone(state);
     for(const item of next.equipment)if(chosen.has(item.id))item[axis]=target;
-    return validate(next);
+    return validate(L.followEquipment(state,next));
   }
   function removeEquipmentGroup(state, ids) {
     const next=clone(state),removed=new Set(ids),byId=new Map(state.equipment.map(e=>[e.id,e]));

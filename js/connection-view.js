@@ -71,7 +71,6 @@
       this.selectedPointMaterial=new T.MeshBasicMaterial({color:'#f59e0b',depthTest:false});
       this.hoverPointMaterial=new T.MeshBasicMaterial({color:'#14b8a6',depthTest:false});
       this.pointBorderMaterial=new T.MeshBasicMaterial({color:'#2563eb',depthTest:false});
-      this.junctionMaterial=new T.MeshBasicMaterial({color:'#365b54'});
       this.segmentGeometry=new T.CylinderGeometry(1,1,1,12);
       this.emphasis=new T.Group();scene.add(this.emphasis);
       const overlay=color=>{
@@ -111,7 +110,7 @@
       }).concat(ConnectionView.crossSpaceRoutes(state),ConnectionView.externalFloorRoutes(state),ConnectionView.buildingEntryRoutes(state)),key=JSON.stringify(routes);
       if(key===this.key)return;
       this.key=key;this.clear();
-      const crossingGaps=ConnectionView.crossingGaps(routes),junctions=new Set();
+      const crossingGaps=ConnectionView.crossingGaps(routes);
       for(const [routeIndex,route] of routes.entries()){
         const material=new T.ShaderMaterial({toneMapped:false,uniforms:{time:this.time,color:{value:new T.Color(route.color)}},
           vertexShader:`
@@ -156,10 +155,6 @@
           const p=route.points[i],border=new T.Mesh(this.pointGeometry,this.pointBorderMaterial),dot=new T.Mesh(this.pointGeometry,this.pointMaterial);
           border.position.set(p.x,(p.y??line.height)+.02,p.z);dot.position.copy(border.position);border.renderOrder=10;dot.renderOrder=11;
           this.group.add(border,dot);line.handles.push({border,dot});
-          const nodeId=route.nodeIds?.[i];
-          if(route.pointKinds?.[i]==='junction'&&nodeId&&!junctions.has(nodeId)){
-            junctions.add(nodeId);const marker=new T.Mesh(this.pointGeometry,this.junctionMaterial);marker.position.copy(border.position);marker.scale.setScalar(route.diameter*.8);this.group.add(marker);
-          }
         }
         this.lines.push(line);
       }

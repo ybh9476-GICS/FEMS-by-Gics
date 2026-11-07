@@ -196,7 +196,8 @@
         points[0]={...p};
         if(reverse){points.reverse();colors.reverse();}
         if(points.length>66)throw new Error('분기점 이동에 필요한 코너가 64개 제한을 넘습니다. 포인트를 최적화하세요.');
-        adjacent.bends=points.slice(1,-1);adjacent.segmentColors=colors;
+        const cleaned=L.compactPath(points,colors);
+        adjacent.bends=cleaned.points.slice(1,-1);adjacent.segmentColors=cleaned.segmentColors;
       }
       node.x=p.x;node.z=p.z;
       return {state:next,index:index===0?0:route(next,id).points.length-1,generated:[]};
@@ -206,9 +207,35 @@
   function setStyle(state,id,changes){const next=copy(state),found=find(next,id);if(!found)throw new Error('연결선을 선택하세요.');Object.assign(found.edge,changes);return next;}
   function setSegmentColor(state,id,index,value){return applyLegacy(state,id,'setSegmentColor',[index,value]);}
   function finishMove(result,id,kind){
-    if(!result?.generated?.length)return result;
+    if(!result)return result;
     const box=sandbox(result.state,id),cleaned=L.finishMove({...result,state:box.state},'to',kind),line=L.route(cleaned.state,'to');
+    if(JSON.stringify(cleaned.state)===JSON.stringify(box.state))return {...result,index:cleaned.index,kind:cleaned.kind};
     return {...cleaned,state:storeRoute(result.state,id,line.points,line.segmentColors)};
+  }
+  function followEquipment(previous,state){
+    const next=copy(state);
+    for(const network of next.networks||[]){
+      const before=previous.networks?.find(n=>n.id===network.id&&n.parentId===network.parentId);if(!before)continue;
+      const anchors=before.nodes.filter(n=>n.equipmentId),parent=next.equipment.find(e=>e.id===network.parentId);
+      const deltas=anchors.map(n=>{
+        const oldItem=previous.equipment.find(e=>e.id===n.equipmentId),item=next.equipment.find(e=>e.id===n.equipmentId);
+        if(!oldItem||!item||(oldItem.floorId||null)!==(item.floorId||null)||(item.floorId||null)!==(parent.floorId||null))return null;
+        const old=position(previous,n),p=position(next,n);return {x:p.x-old.x,z:p.z-old.z};
+      });
+      const shift=deltas[0],together=shift&&deltas.every(d=>d&&same(d,shift));
+      if(together&&!same(shift,{x:0,z:0}))for(const n of network.nodes)if(!n.equipmentId){n.x+=shift.x;n.z+=shift.z;}
+      for(const edge of network.edges){
+        const oldEdge=before.edges.find(e=>e.id===edge.id);if(!oldEdge)continue;
+        const old=geometry(previous,before,oldEdge),from=network.nodes.find(n=>n.id===edge.from),to=network.nodes.find(n=>n.id===edge.to);
+        if([from,to].some(n=>n.equipmentId&&(next.equipment.find(e=>e.id===n.equipmentId)?.floorId||null)!==(parent.floorId||null)))continue;
+        const start=position(next,from),end=position(next,to);
+        if(same(start,old.points[0])&&same(end,old.points.at(-1)))continue;
+        const moved=L.followPath(old.points,old.segmentColors,start,end),rebuilt=L.coloredPath(moved.points,moved.segmentColors),cleaned=L.compactPath(rebuilt.points,rebuilt.segmentColors);
+        if(cleaned.points.length>66)throw new Error('설비 이동에 필요한 연결선 포인트가 64개 제한을 넘습니다.');
+        edge.bends=cleaned.points.slice(1,-1);edge.segmentColors=cleaned.segmentColors;
+      }
+    }
+    return next;
   }
   function reset(state,id){return applyLegacy(state,id,'reset',[]);}
   function optimal(state,id){
@@ -225,7 +252,7 @@
     next.networks=next.networks.map(n=>n.parentId===parent.id?network:n);validate(next,next);return next;
   }
   function snapCandidates(state,id){const line=route(state,id);return routes(state).filter(r=>r.parentId===line?.parentId).flatMap(r=>r.points);}
-  return {enableShared,reconcile,validate,route,routes,storeRoute,setStyle,setSegmentColor,movePoint,finishMove,reset,optimal,snapCandidates,
+  return {enableShared,reconcile,validate,route,routes,storeRoute,setStyle,setSegmentColor,movePoint,finishMove,followEquipment,reset,optimal,snapCandidates,
     moveSegment:(state,id,...args)=>applyLegacy(state,id,'moveSegment',args,true),addPoint:(state,id,...args)=>applyLegacy(state,id,'addPoint',args,true),
     deletePoint:(state,id,index)=>{const line=route(state,id);if(!L.canDeletePoint(line,index))throw new Error('공유 분기점은 이동할 수 있지만 삭제할 수 없습니다.');return applyLegacy(state,id,'deletePoint',[index]);},
     optimize:(state,id)=>applyLegacy(state,id,'optimize',[])};

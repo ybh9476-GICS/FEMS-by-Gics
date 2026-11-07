@@ -52,12 +52,14 @@
         });
       });
     }
-    select(selection){$('connection-feedback').textContent='';this.finishNumeric(true);this.finish(true);if(this.selection?.id!==selection.id||this.selection?.index!==selection.index||selection.kind!=='segment')this.cancelCorner();this.selection=selection;}
+    select(selection){$('connection-feedback').textContent='';this.finishNumeric(true);this.finish(true);if(this.added&&(selection.id!==this.selection?.id||selection.index!==this.selection?.index||selection.kind!==this.selection?.kind))selection=this.finishAdded(selection);if(this.selection?.id!==selection.id||this.selection?.index!==selection.index||selection.kind!=='segment')this.cancelCorner();this.selection=selection;return selection;}
     cancelCorner(){this.corner=false;this.api.guides({},false);}
-    clear(){$('connection-feedback').textContent='';this.finishNumeric(true);this.finish(true);this.cancelCorner();this.selection=null;}
+    clear(){$('connection-feedback').textContent='';this.finishNumeric(true);this.finish(true);this.finishAdded();this.cancelCorner();this.selection=null;}
     apply(build){
       if(!this.selection)return;
       this.finishNumeric(true);
+      // Explicit actions (delete, color, optimize) consume a newly added handle.
+      if(this.added){this.added=null;this.api.finish(true);}
       this.cancelCorner();
       $('connection-feedback').textContent='';
       try{this.api.commit(build());$('connection-error').textContent='';return true;}
@@ -74,7 +76,7 @@
       if(applied)$('connection-feedback').textContent=removed?`불필요한 포인트 ${removed}개를 제거했습니다.`:'정리할 포인트가 없습니다. 코너·분기점과 되돌아가는 경로는 유지됩니다.';
     }
     changeStyle(changes){
-      if(changes.color){if(this.selection?.kind!=='segment')return;this.apply(()=>L.setSegmentColor(this.api.state(),this.selection.id,this.selection.index,changes.color));}
+      if(changes.color){if(this.selection?.kind!=='segment')return;this.apply(()=>{const next=L.setSegmentColor(this.api.state(),this.selection.id,this.selection.index,changes.color),cleaned=L.finishMove({state:next,index:this.selection.index},this.selection.id,'segment');this.selection={...this.selection,index:cleaned.index,kind:cleaned.kind||'segment'};return cleaned.state;});}
       else this.apply(()=>L.setStyle(this.api.state(),this.selection.id,changes));
     }
     previewNumeric(input){
@@ -91,14 +93,30 @@
     }
     finishNumeric(commit){
       if(!this.numeric)return;const {input,selection,result}=this.numeric;this.numeric=null;
-      if(commit&&result){const cleaned=L.finishMove(result,selection.id);this.selection.index=cleaned.index;this.api.preview(cleaned.state);}
-      if(!commit)this.selection=selection;this.api.finish(commit);
+      if(commit&&result){const cleaned=L.finishMove(result,selection.id);this.selection={...selection,index:cleaned.index,kind:cleaned.kind||selection.kind};this.api.preview(cleaned.state);}
+      if(!commit)this.selection=this.added||selection;
+      if(result||!commit)this.added=null;
+      if(this.added&&commit&&!result)this.finishAdded();else this.api.finish(commit);
       const line=this.selection?L.route(this.api.state(),this.selection.id):null;
       if(line)input.value=input.id==='connection-diameter'?line.diameter:line.points[this.selection.index]?.[input.id.slice('connection-'.length)]??'';
       input.removeAttribute('aria-invalid');$('connection-error').textContent='';
     }
-    add(){if(this.selection?.kind!=='segment')return;this.apply(()=>{const result=L.addPoint(this.api.state(),this.selection.id,this.selection.index);this.selection={id:this.selection.id,kind:'point',index:result.index};return result.state;});}
-    remove(){if(this.selection?.kind!=='point')return;this.apply(()=>{const next=L.deletePoint(this.api.state(),this.selection.id,this.selection.index);this.selection={id:this.selection.id,kind:'segment',index:0};return next;});}
+    add(){
+      if(this.selection?.kind!=='segment')return;
+      this.finishNumeric(true);this.finishAdded();this.cancelCorner();
+      try{const result=L.addPoint(this.api.state(),this.selection.id,this.selection.index);this.added={...this.selection};this.selection={id:this.selection.id,kind:'point',index:result.index};this.api.preview(result.state);$('connection-error').textContent='';}
+      catch(error){$('connection-error').textContent=error.message;}
+    }
+    finishAdded(incoming){
+      if(!this.added)return incoming;
+      this.added=null;
+      const target=incoming?.id===this.selection.id?incoming:this.selection;
+      const cleaned=L.finishMove({state:this.api.state(),index:target.index},this.selection.id,target.kind);
+      this.selection={...this.selection,index:cleaned.index,kind:cleaned.kind||'point'};this.api.preview(cleaned.state);this.api.finish(true);
+      return incoming?.id===this.selection.id?{...incoming,index:cleaned.index,kind:cleaned.kind||incoming.kind}:incoming;
+    }
+    cancelAdded(){if(!this.added)return;this.selection=this.added;this.added=null;this.api.finish(false);}
+    remove(){if(this.selection?.kind!=='point')return;this.apply(()=>{const next=L.deletePoint(this.api.state(),this.selection.id,this.selection.index),cleaned=L.finishMove({state:next,index:0},this.selection.id,'segment');this.selection={id:this.selection.id,kind:'segment',index:0};return cleaned.state;});}
     start(hit){this.finishNumeric(true);this.edit={state:JSON.parse(JSON.stringify(this.api.state())),selection:{...hit},corner:this.corner,snap:{}};}
     preview(position,options={}){
       if(!this.edit||this.edit.selection.locked)return;
@@ -114,7 +132,7 @@
           const result=isPoint?L.movePoint(state,selection.id,selection.index,snapped.position):L.moveSegment(state,selection.id,selection.index,snapped.position,{corner});
           this.edit.result=result;this.selection={...selection,index:result.index};this.api.guides({},corner);this.api.preview(result.state);$('connection-error').textContent='';return;
         }
-        const axes=isPoint?['x','z']:[line.points[selection.index].z===line.points[selection.index+1].z?'z':'x'];
+        const axes=isPoint?['x','z']:[Math.abs(line.points[selection.index].z-line.points[selection.index+1].z)<1e-6?'z':'x'];
         // Quantize free dragging before snapping, so alignment to fractional corners stays exact.
         const rounded={x:Math.round(position.x*100)/100,z:Math.round(position.z*100)/100};
         const extra=(line.externalFloor&&options.snapPoints?options.snapPoints:state.version>=2?L.snapCandidates(state,selection.id):[]).filter(p=>!line.points.some(q=>Math.abs(q.x-p.x)<1e-6&&Math.abs(q.z-p.z)<1e-6));
@@ -127,10 +145,11 @@
     }
     finish(commit){
       if(!this.edit)return;const {selection:original,result}=this.edit;this.edit=null;
-      if(commit&&result){const cleaned=L.finishMove(result,original.id,original.kind);this.selection={...original,index:cleaned.index};this.api.preview(cleaned.state);}
+      if(commit&&result){const cleaned=L.finishMove(result,original.id,original.kind);this.selection={...original,index:cleaned.index,kind:cleaned.kind||original.kind};this.api.preview(cleaned.state);}
       if(!commit)this.selection=original;
+      if(this.added&&(result||!commit)){if(!commit)this.selection=this.added;this.added=null;}
       if(result||!commit)this.cancelCorner();else this.api.guides({},this.corner);
-      this.api.finish(commit);
+      if(!(this.added&&commit&&!result))this.api.finish(commit);
     }
     render(view){
       this.view=view;

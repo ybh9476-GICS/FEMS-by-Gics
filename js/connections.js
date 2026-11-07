@@ -156,17 +156,83 @@
     return stitched(state,id,nodes,index);
   }
   function finishMove(result,id,kind='point'){
-    if(!result?.generated?.length)return result;
-    const line=route(result.state,id),points=copy(line.points),colors=[...line.segmentColors],generated=new Set(result.generated);let index=result.index;
-    // Remove only auto-created redundant vertices; old straight handles remain available.
-    for(let i=points.length-2;i>0;i--){
-      if(!generated.has(i)||(kind==='point'&&i===index)||colors[i-1]!==colors[i])continue;
+    if(!result)return result;
+    const line=route(result.state,id),cleaned=compactPath(line.points,line.segmentColors,result.index,kind);
+    return {...result,...cleaned,state:cleaned.points.length===line.points.length?result.state:storeRoute(result.state,id,cleaned.points,cleaned.segmentColors),generated:[]};
+  }
+  // Geometry-only cleanup: endpoints, reversals and visible color boundaries survive.
+  // Keep the original indices so a removed handle selects its containing segment.
+  function compactPath(source,sourceColors,index=0,kind='segment',axes=['x','z']){
+    const points=copy(source),segmentColors=[...sourceColors],indices=source.map((_,i)=>i);
+    const equal=(a,b)=>axes.every(k=>Math.abs(a[k]-b[k])<1e-6);
+    let i=1;
+    while(i<points.length-1){
       const a=points[i-1],b=points[i],c=points[i+1];
-      if(((Math.abs(a.x-b.x)<1e-6&&Math.abs(b.x-c.x)<1e-6)||(Math.abs(a.z-b.z)<1e-6&&Math.abs(b.z-c.z)<1e-6))&&((b.x-a.x)*(c.x-b.x)+(b.z-a.z)*(c.z-b.z)>=0)){
-        points.splice(i,1);colors.splice(i,1);if(i<=index)index=Math.max(0,index-1);
-      }
+      const straight=axes.filter(k=>Math.max(a[k],b[k],c[k])-Math.min(a[k],b[k],c[k])>=1e-6).length<=1;
+      const forward=axes.reduce((sum,k)=>sum+(b[k]-a[k])*(c[k]-b[k]),0)>=0;
+      const remove=equal(a,b)?i-1:equal(b,c)?i:straight&&forward&&segmentColors[i-1]===segmentColors[i]?i:-1;
+      if(remove<0){i++;continue;}
+      points.splice(i,1);indices.splice(i,1);segmentColors.splice(remove,1);i=Math.max(1,i-1);
     }
-    return {state:storeRoute(result.state,id,points,colors),index:Math.min(index,points.length-(kind==='point'?1:2)),generated:[]};
+    let selected=indices.indexOf(index);
+    if(kind==='segment'||selected<0){kind='segment';selected=Math.max(0,indices.findIndex(n=>n>index)-1);selected=Math.min(selected,points.length-2);}
+    return {points,segmentColors,index:selected,kind};
+  }
+  // Follow only the endpoint runs. Interpolate color boundaries on those runs;
+  // distant corners remain anchored. The caller orthogonalizes any new 3D joins.
+  function followPath(source,colors,start,end,axes=['x','z']){
+    const clean=compactPath(source,colors,0,'segment',axes),old=clean.points,points=copy(old),last=old.length-1;
+    const delta=(a,b)=>axes.map(k=>a[k]-b[k]),a=delta(start,old[0]),b=delta(end,old[last]);
+    if(a.every((v,i)=>Math.abs(v-b[i])<1e-6)){
+      for(const p of points)axes.forEach((k,i)=>p[k]+=a[i]);
+    }else{
+      const vertices=[0];
+      for(let i=1;i<last;i++){
+        const u=delta(old[i],old[i-1]),v=delta(old[i+1],old[i]);
+        const axis=u.findIndex(n=>Math.abs(n)>=1e-6);
+        if(axis<0||v.some((n,j)=>j!==axis&&Math.abs(n)>=1e-6)||u[axis]*v[axis]<0)vertices.push(i);
+      }
+      vertices.push(last);points[0]={...start};points[last]={...end};
+      if(vertices.length>2){
+        for(const [endpoint,corner,target] of [[0,vertices[1],start],[last,vertices.at(-2),end]]){
+          const axis=axes.find(k=>Math.abs(old[corner][k]-old[endpoint][k])>=1e-6);
+          for(const k of axes)if(k!==axis)points[corner][k]+=target[k]-old[endpoint][k];
+        }
+      }
+      const rebuilt=[points[0]],assigned=[];
+      for(let j=1;j<vertices.length;j++){
+        const from=vertices[j-1],to=vertices[j],axis=axes.find(k=>Math.abs(old[to][k]-old[from][k])>=1e-6);
+        const order=[...new Set([axis,...axes].filter(Boolean))],legs=[points[from]];
+        for(const k of order)if(Math.abs(legs.at(-1)[k]-points[to][k])>=1e-6)legs.push({...legs.at(-1),[k]:points[to][k]});
+        const distance=(a,b)=>Math.hypot(...axes.map(k=>a[k]-b[k]));
+        const total=legs.slice(1).reduce((sum,p,i)=>sum+distance(legs[i],p),0),original=distance(old[from],old[to]);
+        if(total<1e-6){rebuilt.push({...points[to]});assigned.push(clean.segmentColors[to-1]);continue;}
+        const bands=[];for(let i=from+1;i<=to;i++)bands.push({end:original?distance(old[from],old[i])/original*total:total,color:clean.segmentColors[i-1]});
+        let cursor=0;
+        for(let i=1;i<legs.length;i++){
+          const startDistance=cursor,length=distance(legs[i-1],legs[i]),endDistance=cursor+length;
+          const cuts=[...bands.slice(0,-1).map(b=>b.end).filter(d=>d>startDistance+1e-6&&d<endDistance-1e-6),endDistance];
+          for(const cut of cuts){
+            const t=(cut-startDistance)/length;
+            rebuilt.push(Object.fromEntries(axes.map(k=>[k,legs[i-1][k]+(legs[i][k]-legs[i-1][k])*t])));
+            assigned.push(bands.find(b=>(cursor+cut)/2<=b.end+1e-6)?.color||bands.at(-1).color);cursor=cut;
+          }
+        }
+      }
+      return {points:rebuilt,segmentColors:assigned};
+    }
+    return {points,segmentColors:clean.segmentColors};
+  }
+  function followEquipment(previous,state){
+    if(previous.version>=2)return state;
+    let next=copy(state);
+    for(const line of routes(previous)){
+      const current=route(next,line.id);if(!current)continue;
+      if(same(line.points[0],current.points[0])&&same(line.points.at(-1),current.points.at(-1)))continue;
+      const moved=followPath(line.points,line.segmentColors,current.points[0],current.points.at(-1)),rebuilt=coloredPath(moved.points,moved.segmentColors),cleaned=compactPath(rebuilt.points,rebuilt.segmentColors);
+      next=storeRoute(next,line.id,cleaned.points,cleaned.segmentColors);
+    }
+    return next;
   }
   function snapPosition(points,excluded,position,tolerance,held={},axes=['x','z']){
     const target={...position},guides={};
@@ -233,7 +299,7 @@
     }
     return points.length===line.points.length?copy(state):storeRoute(state,id,points,colors);
   }
-  const api={palette,clean,style,orthogonal,route,routes,setStyle,setSegmentColor,storeRoute,movePoint,moveSegment,finishMove,snapPosition,addPoint,deletePoint,optimize,reset};
+  const api={palette,clean,style,orthogonal,coloredPath,compactPath,followPath,followEquipment,route,routes,setStyle,setSegmentColor,storeRoute,movePoint,moveSegment,finishMove,snapPosition,addPoint,deletePoint,optimize,reset};
   // v4 separates the management tree from directed electrical links.
   api.powerLinks=state=>state.version>=4?state.powerLinks:state.equipment.filter(e=>e.parentId).map(e=>({from:e.parentId,to:e.id}));
   api.validatePowerLinks=(links,equipment)=>{
@@ -306,6 +372,7 @@
       return document?.version>=2?shared[name](state,...args):legacy[name](state,...args);
     };
     Object.assign(api,{enableShared:shared.enableShared,reconcileNetworks:shared.reconcile,validateNetworks:shared.validate,snapCandidates:shared.snapCandidates,optimalNetwork:shared.optimal});
+    api.followEquipment=(previous,state)=>state.version>=2?shared.followEquipment(previous,state):legacy.followEquipment(previous,state);
   };
   if(typeof module!=='undefined'&&module.exports){module.exports=api;api.installShared(require('./shared-connections.js'));require('./external-connections.js')(api);require('./floor-connections.js')(api);}else root.FEMSConnections=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
