@@ -5,7 +5,7 @@
   class Schematic {
     constructor(host,api){
       this.host=host;this.api=api;this.scale=1;this.offset={x:0,y:0};this.active=false;
-      host.innerHTML='<div class="schematic-tools"><div><strong>전력 계통도</strong><span class="schematic-count" aria-live="polite"></span></div><div class="schematic-filters"><input type="search" aria-label="계통도 설비 검색" placeholder="설비 이름 · 코드 · 공간 검색"><label><input type="checkbox">선택 설비의 직접 연결만</label><button type="button" class="schematic-locate" disabled>배치에서 보기 ↗</button></div></div><div class="schematic-canvas"><svg role="group" aria-label="설비 전력 연결 관계도" tabindex="0"></svg><div class="schematic-empty" hidden></div></div>';
+      host.innerHTML='<div class="schematic-tools"><strong>전력 계통도</strong><div class="schematic-filters"><input type="search" aria-label="계통도 설비 검색" placeholder="설비 이름 · 코드 · 공간 검색"><label><input type="checkbox">선택 설비의 직접 연결만</label><button type="button" class="schematic-locate" disabled>배치에서 보기 ↗</button></div></div><div class="schematic-canvas"><svg role="group" aria-label="설비 전력 연결 관계도" tabindex="0"></svg><div class="schematic-empty" hidden></div></div>';
       this.search=host.querySelector('input[type=search]');this.neighbors=host.querySelector('input[type=checkbox]');this.locate=host.querySelector('.schematic-locate');this.canvas=host.querySelector('.schematic-canvas');this.svg=host.querySelector('svg');this.empty=host.querySelector('.schematic-empty');
       this.search.addEventListener('input',()=>{this.key=null;this.draw();this.fit(true);});this.neighbors.addEventListener('change',()=>{this.key=null;this.draw();this.fit(true);});
       this.locate.addEventListener('click',()=>{if(this.selected)this.api.locate(this.selected);});
@@ -33,7 +33,6 @@
         this.transform();
       }
       this.empty.hidden=filtered.nodes.length>0;this.empty.textContent=graph.nodes.length?'검색 조건에 맞는 설비가 없습니다. 검색어를 바꾸거나 직접 연결 필터를 해제하세요.':'등록된 설비가 없습니다. 3D View 또는 평면도에서 설비를 배치하세요.';
-      this.host.querySelector('.schematic-count').textContent=`설비 ${filtered.nodes.length} / ${graph.nodes.length} · 연결 ${filtered.edges.length} / ${graph.edges.length}`;
       if(!this.layout.edges.some(e=>e.id===this.edge))this.edge=null;
       this.highlight();
     }

@@ -1,18 +1,16 @@
 .editor.schematic-mode #scene,.editor.schematic-mode #labels,.editor.schematic-mode #gizmo-rotate,.editor.schematic-mode .scene-heading,.editor.schematic-mode #empty-state,.editor.schematic-mode #graphics-error,.editor.schematic-mode .space-breadcrumb,.editor.schematic-mode .equipment-dock{display:none!important}
-.editor.schematic-mode #labels-toggle{display:none}
+.editor.schematic-mode #labels-toggle,.editor.schematic-mode .alignment-tools{display:none}
 .editor.schematic-mode .statusbar{display:none}
 .editor.schematic-mode .scene-controls{z-index:3;pointer-events:none}
 .editor.schematic-mode .scene-controls>div{pointer-events:auto}
 #schematic{position:absolute;inset:0;display:flex;flex-direction:column;background:#f7faf9;overflow:hidden;color:#344f55}
-.schematic-tools{padding:16px 20px 12px;background:#fff;border-bottom:1px solid #e0e9e5;flex-shrink:0}
-.schematic-tools>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.schematic-tools strong{font-size:15px;color:#244c43}
-.schematic-count{font-size:11px;color:#7d9087}
-.schematic-filters{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:12px}
-.schematic-filters input[type=search]{flex:1;min-width:140px;max-width:300px;padding:7px 10px;font-size:11px}
+.schematic-tools{display:flex;align-items:center;gap:16px;padding:12px 20px;background:#fff;border-bottom:1px solid #e0e9e5;flex-shrink:0;overflow-x:auto}
+.schematic-tools strong{flex-shrink:0;white-space:nowrap;font-size:15px;color:#244c43}
+.schematic-filters{display:flex;align-items:center;flex:1;gap:10px;min-width:0}
+.schematic-filters input[type=search]{flex:1;min-width:140px;max-width:240px;padding:7px 10px;font-size:11px}
 .schematic-filters label{display:flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap}
 .schematic-filters input[type=checkbox]{width:auto;accent-color:#227b69}
-.schematic-filters button{font-size:11px;padding:7px 10px;margin-left:auto}
+.schematic-filters button{flex-shrink:0;white-space:nowrap;font-size:11px;padding:7px 10px;margin-left:auto}
 .schematic-canvas{position:relative;min-height:0;flex:1;background-image:radial-gradient(#dbe6e1 .7px,transparent .7px);background-size:16px 16px}
 .schematic-canvas>svg{display:block;width:100%;height:100%;touch-action:none;user-select:none;cursor:grab}
 .schematic-canvas>svg:active{cursor:grabbing}
