@@ -82,7 +82,7 @@ test('연결점 없는 교차는 틈으로 표시하고 실제 분기점과 다�
 });
 test('실제 컨트롤러는 v4 분기 재구성 후 유효한 구간을 선택하고 취소·실행 취소를 보존한다',()=>{
  const state=fixture(),h=new M.History(state),elements=new Map();
- const element=()=>({children:[],dataset:{},style:{setProperty(){}},listeners:{},addEventListener(n,fn){this.listeners[n]=fn;},setAttribute(){},removeAttribute(){},append(e){this.children.push(e);},showModal(){}});
+ const element=()=>({children:[],dataset:{},style:{setProperty(){}},listeners:{},addEventListener(n,fn){this.listeners[n]=fn;},setAttribute(){},removeAttribute(){},append(e){this.children.push(e);},replaceChildren(...children){this.children=children;},showModal(){}});
  const document={body:{dataset:{}},createElement:element,getElementById(id){if(!elements.has(id))elements.set(id,element());return elements.get(id);}};
  const context={FEMSConnections:L,document,addEventListener(){}};context.window=context;vm.createContext(context);vm.runInContext(fs.readFileSync('js/connection-editor.js','utf8'),context);
  const editor=new context.FEMSConnectionEditor({state:()=>h.current,commit:s=>h.commit(s),preview:s=>h.preview(s),finish:ok=>h.finishEdit(ok),guides(){}}),id=L.routes(state).at(-1).id;

@@ -3,7 +3,7 @@ const M=require('../js/model.js'),L=require('../js/connections.js');
 function fixture(){
   const state=M.demo(),parent=state.equipment[0],child=state.equipment[1];child.parentId=parent.id;
   const initial=L.storeRoute(state,child.id,[{x:-15,z:-5},{x:0,z:-5},{x:0,z:5},{x:10,z:5}]),history=new M.History(initial),elements=new Map();
-  const element=()=>({showModal(){},children:[],style:{setProperty(){}},dataset:{},listeners:{},attributes:{},addEventListener(name,fn){this.listeners[name]=fn;},setAttribute(k,v){this.attributes[k]=v;},removeAttribute(k){delete this.attributes[k];},append(e){this.children.push(e);}});
+  const element=()=>({showModal(){},children:[],style:{setProperty(){}},dataset:{},listeners:{},attributes:{},addEventListener(name,fn){this.listeners[name]=fn;},setAttribute(k,v){this.attributes[k]=v;},removeAttribute(k){delete this.attributes[k];},append(e){this.children.push(e);},replaceChildren(...children){this.children=children;}});
   const document={body:{dataset:{}},createElement:element,getElementById(id){if(!elements.has(id))elements.set(id,element());return elements.get(id);}};
   const context={FEMSConnections:L,document,addEventListener(){}};context.window=context;vm.createContext(context);vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/connection-editor.js'),'utf8'),context);
   let guides={},corner=false;

@@ -244,7 +244,7 @@
   }
   function treeState(state){
     const equipment=state.equipment.map(e=>{const parent=state.equipment.find(p=>p.id===e.parentId);return {...e,parentId:parent&&(parent.floorId||null)===(e.floorId||null)?parent.id:e.floorId||'@site'};});
-    return {...state,equipment:[{id:'@site',name:'대지',code:'',type:'space-floor'},...(state.buildings||[]).map(b=>({...b,parentId:'@site',code:''})),...(state.floors||[]).slice().sort((a,b)=>b.elevation-a.elevation).map(f=>({...f,type:f.type||'space-floor',parentId:f.buildingId||'@site',code:''})),...equipment]};
+    return {...state,equipment:[{id:'@site',name:state.site.name??'대지',code:'',type:'space-floor'},...(state.buildings||[]).map(b=>({...b,parentId:'@site',code:''})),...(state.floors||[]).slice().sort((a,b)=>b.elevation-a.elevation).map(f=>({...f,type:f.type||'space-floor',parentId:f.buildingId||'@site',code:''})),...equipment]};
   }
   function view(state,context={}){
     const floor=state.floors?.find(f=>f.id===context.floorId),building=state.buildings?.find(b=>b.id===context.buildingId);

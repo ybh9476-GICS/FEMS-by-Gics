@@ -1,0 +1,11 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><title>Language regression checks</title>
+<script defer src="../js/locales.js"></script><script defer src="../js/i18n.js"></script><script defer src="../js/file-input.js"></script><script defer src="i18n-browser.js"></script>
+<body><button id="run">Run language checks</button><pre id="results" data-i18n-skip>Not run</pre>
+<div id="fixture"><span id="copy">설정</span><button id="hint" title="빌보드 표시 켜기/끄기" aria-label="빌보드 표시">설정</button>
+<span id="project-name">설정</span><div class="tree-name">수전반</div><div class="object-label">삭제</div><div class="schematic-node-name">태양광 패널</div>
+<div class="power-node">빌보드 표시</div><span data-i18n-skip>설정</span><span id="asset-delete-name">건물</span>
+<input id="draft" value="편집 중인 프로젝트 이름"><textarea>수전반</textarea><div id="dynamic"></div></div>
+<form id="file-form"><span id="choose-file">파일 선택</span><span id="picked-name">선택된 파일 없음</span><input id="picked-file" type="file" data-file-label="picked-name" required><input id="required-number" type="number" min="1" max="10" step="any" required></form>
+<div id="connection-title"><span data-i18n-skip>분기점</span> → <span id="junction-label" data-i18n-ui>분기점 · 3개 설비</span></div>
+<svg><g id="site-node" class="schematic-node" data-i18n-site-suffix="대지 / 설정" aria-label="대지 · 대지 / 설정"><title><tspan data-i18n-skip>순환 연결 포함</tspan><tspan id="cycle-warning" data-i18n-ui>순환 연결 포함</tspan></title></g></svg>
+</body></html>

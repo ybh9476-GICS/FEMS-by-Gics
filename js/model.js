@@ -8,6 +8,8 @@
   const LIMIT = 300;
   const SITE_MIN = 0.1, SITE_MAX = 100000;
   function siteGridStep(site) { return Math.max(1, 10 ** Math.ceil(Math.log10(Math.max(site.width, site.depth) / 1000))); }
+  // Display only: never round the stored geometry or a value being typed.
+  function displayCoordinate(value){return Number.isFinite(value)?Number(value.toFixed(2)):value;}
   const clone = value => JSON.parse(JSON.stringify(value));
   function text(value, label, max = 80) {
     if (typeof value !== 'string' || !value.trim() || value.length > max) throw new Error(`${label}: 1~${max}자로 입력하세요.`);
@@ -33,7 +35,7 @@
       z: Math.round(Math.max(-site.depth / 2 + e.z, Math.min(site.depth / 2 - e.z, z)) * 1000) / 1000 };
   }
   function resizeSite(state, width, depth) {
-    const site = { width: number(width, SITE_MIN, SITE_MAX, '대지 가로'), depth: number(depth, SITE_MIN, SITE_MAX, '대지 세로') };
+    const site = { ...state.site, width: number(width, SITE_MIN, SITE_MAX, '대지 가로'), depth: number(depth, SITE_MIN, SITE_MAX, '대지 세로') };
     for (const item of state.equipment.filter(e=>!e.floorId)) {
       const e = extents(item);
       if (Math.abs(item.x) + e.x > width / 2 + .002 || Math.abs(item.z) + e.z > depth / 2 + .002)
@@ -45,10 +47,13 @@
     next.site = site;
     return validate(next);
   }
+  function renameSite(state,name){const next=clone(state);next.site.name=text(name,'대지 이름');return validate(next);}
   function validate(raw) {
     if (!raw || raw.format !== FORMAT || ![1,2,3,4].includes(raw.version)) throw new Error('FEMS v1~v4 프로젝트(.fems)만 열 수 있습니다. WMS 도면은 호환되지 않습니다.');
     const result = { format: FORMAT, version: raw.version, name: text(raw.name, '도면 이름'), site: {
       width: number(raw.site?.width, SITE_MIN, SITE_MAX, '부지 가로'), depth: number(raw.site?.depth, SITE_MIN, SITE_MAX, '부지 세로') }, equipment: [] };
+    // Optional so existing projects retain their original shape and default label.
+    if(raw.site?.name!==undefined)result.site.name=text(raw.site.name,'대지 이름');
     if (!Array.isArray(raw.equipment) || raw.equipment.length > LIMIT) throw new Error(`설비는 최대 ${LIMIT}개까지 지원합니다.`);
     const ids = new Set(), codes = new Set();
     for (const item of raw.equipment) {
@@ -288,7 +293,7 @@
     undo() { this.finishEdit(); if (!this.past.length) return false; this.future.push(this.current); this.current = this.past.pop(); return true; }
     redo() { this.finishEdit(); if (!this.future.length) return false; this.past.push(this.current); this.current = this.future.pop(); return true; }
   }
-  const api = { STORAGE_KEY, FORMAT, LIMIT, SITE_MIN, SITE_MAX, siteGridStep, clone, validate, empty, create, duplicateName, demo, extents, clampPosition, resizeDimensions, resizeSite, groupBounds, transformGroup, alignEquipment, removeEquipmentGroup, reparent, moveEquipment, moveEquipmentGroup, removeEquipment, removeAsset, overlaps, History };
+  const api = { STORAGE_KEY, FORMAT, LIMIT, SITE_MIN, SITE_MAX, siteGridStep, displayCoordinate, clone, validate, empty, create, duplicateName, demo, extents, clampPosition, resizeDimensions, resizeSite, renameSite, groupBounds, transformGroup, alignEquipment, removeEquipmentGroup, reparent, moveEquipment, moveEquipmentGroup, removeEquipment, removeAsset, overlaps, History };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.FEMSModel = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

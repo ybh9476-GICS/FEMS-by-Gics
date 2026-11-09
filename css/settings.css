@@ -1,0 +1,14 @@
+#settings-dialog{width:min(440px,calc(100vw - 32px));max-width:none;max-height:calc(100dvh - 32px);padding:0;border:1px solid #dce6e1;border-radius:14px;background:#fff;color:#344f55;box-shadow:0 18px 60px #183b3829;overflow:auto}
+#settings-dialog::backdrop{background:#294d4066}
+.settings-header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid #e1e9e6}
+.settings-header h2{margin:0;font-size:20px;color:#244c43}
+.settings-header .icon-button{display:grid;place-items:center;width:32px;height:32px;padding:6px}
+.settings-body{padding:24px}
+.settings-group{min-width:0;margin:0;padding:0;border:0}
+.settings-group+.settings-group{margin-top:24px}
+.settings-group legend{padding:0;margin-bottom:10px;font-size:12px;font-weight:600;color:#506b62}
+.settings-options{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;padding:4px;background:#f3f6f5;border:1px solid #e1e9e6;border-radius:9px}
+.settings-options button{min-width:0;padding:11px 6px;border:1px solid transparent;border-radius:6px;background:transparent;color:#71847d;font-size:12px;white-space:nowrap}
+.settings-options button[aria-pressed=true]{background:#fff;border-color:#b9d5c9;color:#245e4c;font-weight:600;box-shadow:0 1px 3px #183b3810}
+.settings-options button:focus-visible{outline:2px solid #227b69;outline-offset:1px}
+.settings-footer{display:flex;justify-content:flex-end;padding:14px 24px;border-top:1px solid #e1e9e6}

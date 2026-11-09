@@ -1,0 +1,14 @@
+/* Translations can be longer than Korean. Preserve input widths and readable controls. */
+html:not([lang=ko]) .settings-options button{white-space:normal;line-height:1.4}
+html:not([lang=ko]) .tabs button{white-space:nowrap}
+html:not([lang=ko]) .schematic-filters label{white-space:normal;min-width:110px}
+html:not([lang=ko]) .schematic-tools strong{font-size:13px}
+html:not([lang=ko]) .schematic-filters input[type=search]{min-width:120px}
+html:not([lang=ko]) .help-nav button{overflow-wrap:anywhere}
+html:not([lang=ko]) .field-row label{min-width:0;overflow-wrap:anywhere}
+html:not([lang=ko]) .equipment-code-row button{flex-shrink:0}
+.localized-file{position:relative;display:flex;align-items:center;gap:10px;min-width:0;margin-top:6px;padding:9px;border:1px solid #dce6e1;border-radius:6px;background:#fff}
+.localized-file-button{flex-shrink:0;padding:6px 10px;border:1px solid #b9cbc4;border-radius:4px;background:#eff4f2;color:#283c43}
+.localized-file-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#asset-dialog .localized-file input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.localized-file:focus-within{outline:2px solid #207d6a;outline-offset:2px}

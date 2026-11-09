@@ -23,7 +23,8 @@
   }
   function graph(state){
     const floors=new Map((state.floors||[]).map(f=>[f.id,f])),buildings=new Map((state.buildings||[]).map(b=>[b.id,b]));
-    const nodes=state.equipment.map(e=>{const floor=floors.get(e.floorId),building=buildings.get(floor?.buildingId);return {id:e.id,name:e.name,code:e.code||'',type:e.type,space:floor?(building?building.name+' / ':'대지 / ')+floor.name:'대지'};});
+    const siteName=state.site?.name??'대지';
+    const nodes=state.equipment.map(e=>{const floor=floors.get(e.floorId),building=buildings.get(floor?.buildingId);return {id:e.id,name:e.name,code:e.code||'',type:e.type,space:floor?(building?building.name+' / ':siteName+' / ')+floor.name:siteName};});
     const byId=new Map(state.equipment.map(e=>[e.id,e])),unique=new Map();
     for(const link of [...(state.powerLinks||[]),...state.equipment.filter(e=>e.parentId).map(e=>({from:e.parentId,to:e.id}))]){
       if(!byId.has(link.from)||!byId.has(link.to)||link.from===link.to)continue;

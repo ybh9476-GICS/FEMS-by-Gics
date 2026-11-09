@@ -93,7 +93,7 @@ test('빈 화면 클릭은 건물·층 선택을 유지하고 카메라와 데�
     ui.clear();assert.equal(ui.keepSelection(),true);assert.equal(ui.selected,id);
     assert.equal(JSON.stringify(ui.context),context);assert.equal(counts().fit,calls.fit);
   }
-  ui.choose('building');ui.choose('@site');assert.equal(ui.keepSelection(),false);assert.deepEqual(state,before);
+  ui.choose('building');ui.choose('@site');assert.equal(ui.keepSelection(),true);assert.equal(ui.selected,'@site');ui.remove();assert.deepEqual(state,before);
   ui.selected='deleted-space';assert.equal(ui.keepSelection(),false);
 });
 
@@ -111,7 +111,7 @@ test('설비·연결선 선택 해제 후 현재 공간 정보를 복구하고 �
 
 test('건물에 연결되지 않은 층은 뒤로가기로 대지에 복귀한다',()=>{
   const {ui,state}=fixture();state.floors.push({id:'floor',name:'독립 층',x:0,z:0,rotation:0,width:20,depth:16,height:.2,elevation:0});
-  ui.choose('floor',{billboard:true});assert.equal(ui.context.floorId,'floor');ui.back();assert.equal(ui.context.floorId,undefined);assert.equal(ui.selected,null);
+  ui.choose('floor',{billboard:true});assert.equal(ui.context.floorId,'floor');ui.back();assert.equal(ui.context.floorId,undefined);assert.equal(ui.selected,'@site');
 });
 
 test('대지 직접 선택과 뒤로가기 복귀는 카메라 맞춤을 호출하지 않는다',()=>{

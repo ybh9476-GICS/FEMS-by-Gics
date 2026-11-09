@@ -2,6 +2,13 @@
   'use strict';
   const L=root.FEMSSchematicLayout,NS='http://www.w3.org/2000/svg';
   const svg=(tag,attrs={},text)=>{const e=document.createElementNS(NS,tag);for(const [key,value] of Object.entries(attrs))e.setAttribute(key,String(value));if(text!=null)e.textContent=text;return e;};
+  function nodeTitle(node,systemSite){
+    const title=svg('title');
+    for(const value of [node.name,node.code].filter(Boolean))title.append(svg('tspan',{'data-i18n-skip':''},value+'\n'));
+    title.append(svg('tspan',{[systemSite?'data-i18n-site-path':'data-i18n-skip']:''},node.space+'\n'));
+    if(node.cycle)title.append(svg('tspan',{'data-i18n-ui':''},'순환 연결 포함'));
+    return title;
+  }
   class Schematic {
     constructor(host,api){
       this.host=host;this.api=api;this.scale=1;this.offset={x:0,y:0};this.active=false;
@@ -28,7 +35,7 @@
         const names=new Map(graph.nodes.map(n=>[n.id,n.name]));
         for(const e of this.layout.edges){const group=svg('g',{'data-edge':e.id,class:'schematic-edge '+e.kind,tabindex:0,role:'button','aria-label':names.get(e.from)+' → '+names.get(e.to)+' · '+(e.kind==='hierarchy'?'계층 연결':'추가 연결')});group.append(svg('title',{},group.getAttribute('aria-label')),svg('path',{d:e.path,class:'schematic-edge-hit'}));const parts=L.coloredSegments(e.points,e.bands);parts.forEach((part,index)=>group.append(svg('path',{d:part.path,class:'schematic-edge-line',stroke:part.color,'stroke-dashoffset':-part.offset,...(index===parts.length-1?{'marker-end':'url(#schematic-arrow-'+part.color.slice(1)+')'}:{})})));
           const choose=()=>{if(this.moved){this.moved=false;return;}this.edge=e.id;this.highlight();};group.addEventListener('click',choose);group.addEventListener('keydown',event=>{if(['Enter',' '].includes(event.key)){event.preventDefault();event.stopPropagation();this.moved=false;choose();}});this.world.append(group);this.edgeElements.set(e.id,group);}
-        for(const n of this.layout.nodes){const g=svg('g',{transform:`translate(${n.x} ${n.y})`,'data-node':n.id,'data-stage':n.rank+1,'data-tone':n.rank%8,class:'schematic-node',tabindex:0,role:'button','aria-label':n.name+' · '+n.space});g.append(svg('title',{},[n.name,n.code,n.space,n.cycle?'순환 연결 포함':''].filter(Boolean).join('\n')),svg('rect',{class:'schematic-card',width:n.width,height:n.height,rx:10}),svg('rect',{class:'schematic-card-accent',x:6,y:10,width:4,height:n.height-20,rx:2,'aria-hidden':true}),svg('text',{x:18,y:25,class:'schematic-node-name'},this.shorten(n.name,22)),svg('text',{x:18,y:47,class:'schematic-node-code'},this.shorten(n.code||root.FEMSCatalog.get(n.type).name,29)),svg('text',{x:18,y:69,class:'schematic-node-space'},this.shorten(n.space,28)));
+        for(const n of this.layout.nodes){const systemSite=this.state.site.name===undefined&&!this.state.floors?.find(f=>f.id===this.state.equipment.find(e=>e.id===n.id)?.floorId)?.buildingId;const g=svg('g',{transform:`translate(${n.x} ${n.y})`,'data-node':n.id,'data-stage':n.rank+1,'data-tone':n.rank%8,class:'schematic-node',...(systemSite?{'data-i18n-site-suffix':n.space}:{}),tabindex:0,role:'button','aria-label':n.name+' · '+n.space});g.append(nodeTitle(n,systemSite),svg('rect',{class:'schematic-card',width:n.width,height:n.height,rx:10}),svg('rect',{class:'schematic-card-accent',x:6,y:10,width:4,height:n.height-20,rx:2,'aria-hidden':true}),svg('text',{x:18,y:25,class:'schematic-node-name'},this.shorten(n.name,22)),svg('text',{x:18,y:47,class:'schematic-node-code',...(n.code||root.FEMSCatalog.get(n.type).custom?{'data-i18n-skip':''}:{})},this.shorten(n.code||root.FEMSCatalog.get(n.type).name,29)),svg('text',{x:18,y:69,class:'schematic-node-space',...(this.state.site.name===undefined&&!this.state.floors?.find(f=>f.id===this.state.equipment.find(e=>e.id===n.id)?.floorId)?.buildingId?{'data-i18n-site-path':''}:{})},this.shorten(n.space,28)));
           const choose=()=>{this.edge=null;this.api.select(n.id);this.nodeElements.get(n.id)?.focus({preventScroll:true});};g.addEventListener('click',choose);g.addEventListener('keydown',e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();e.stopPropagation();choose();}});this.world.append(g);this.nodeElements.set(n.id,g);}
         this.transform();
       }

@@ -35,7 +35,7 @@
         const g=geometry(state,network,edge),names=descendants.get(edge.to)||[];
         const fromName=g.from.equipmentId?state.equipment.find(e=>e.id===g.from.equipmentId)?.name:'분기점';
         const toName=g.to.equipmentId?state.equipment.find(e=>e.id===g.to.equipmentId)?.name:`분기점 · ${names.length}개 설비`;
-        result.push({id:edge.id,parentId:network.parentId,childIds:names,label:`${fromName} → ${toName}`,points:g.points,segmentColors:g.segmentColors,
+        result.push({id:edge.id,parentId:network.parentId,childIds:names,label:`${fromName} → ${toName}`,labelParts:[{text:fromName,ui:!g.from.equipmentId},{text:' → ',ui:false},{text:toName,ui:!g.to.equipmentId}],points:g.points,segmentColors:g.segmentColors,
           diameter:edge.diameter,color:edge.color,manual:true,distanceOffset:distance.get(edge.from)||0,
           nodeIds:g.points.map((_,i)=>i===0?network.parentId+'/'+edge.from:i===g.points.length-1?network.parentId+'/'+edge.to:null),
           pointKinds:g.points.map((_,i)=>i===0?(g.from.equipmentId?'equipment':'junction'):i===g.points.length-1?(g.to.equipmentId?'equipment':'junction'):'bend')});

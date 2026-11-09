@@ -130,9 +130,10 @@
           toggle.textContent=hasChildren?(expanded?'▾':'▸'):'·';toggle.disabled=!hasChildren;
           toggle.setAttribute('aria-label',`${item.code||item.name} ${expanded?'접기':'펼치기'}`);
           toggle.addEventListener('click',event=>{event.stopPropagation();if(collapsed.has(item.id))collapsed.delete(item.id);else collapsed.add(item.id);this.render(state,this.selected,true,this.selectedIds);});
-          const label=document.createElement('span');label.className='tree-name';
+          const label=document.createElement('span');label.className='tree-name';if(item.id==='@site'&&state.site?.name===undefined)label.setAttribute('data-i18n-ui','');
           const name=document.createElement('strong');name.textContent=item.name;label.append(name);
           row.append(toggle,label);row.title=item.name;
+          if(item.id==='@site'&&state.site?.name===undefined)for(const element of [li,row,toggle])element.setAttribute('data-i18n-site-label','');
           if(hasChildren){const count=document.createElement('span');count.className='tree-count';count.textContent=children.get(item.id).length;row.append(count);}
           row.addEventListener('click',event=>{if(this.skipClick){this.skipClick=false;return;}this.choose(item.id,event);});
           this.bindDrag(row,item.id);li.append(row);container.append(li);

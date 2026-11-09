@@ -30,7 +30,7 @@
         const points=[start,lead,end].filter((p,i,a)=>!i||Math.hypot(p.x-a[i-1].x,p.z-a[i-1].z)>1e-6);
         if(local!==parent)points.reverse();
         const otherFloor=source.floors?.find(f=>f.id===other.floorId),building=source.buildings?.find(b=>b.id===otherFloor?.buildingId);
-        const path=[building?.name,otherFloor?.name||'대지',other.name].filter(Boolean).join(' › ');
+        const path=[building?.name,otherFloor?.name||(state.site.name??'대지'),other.name].filter(Boolean).join(' › ');
         routes.push({id:idFor(parent.id,child.id,floorId),parentId:parent.id,childIds:[child.id],rootId:idFor(parent.id,child.id,floorId),points,segmentColors:points.slice(1).map(()=>style.color),diameter:style.diameter,color:style.color,elevation:0,externalFloor:true,floorId,label:parent.name+' → '+child.name,portal:{targetId:other.id,name:other.name,path,point:end}});
       }
       return routes;

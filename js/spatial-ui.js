@@ -83,7 +83,7 @@
     enter(id,billboard=false){const leavingFloor=!!this.context.floorId;this.finish();const state=this.api.state(),k=S.kind(state,id),n=S.get(state,id);if(!k)return;this.selected=id;if(k==='building')this.context={buildingId:id};else if(billboard)this.context={buildingId:n.buildingId,floorId:id};else this.focusFloor(id);this.api.refresh();this.api.fit({preserveAngle:true,zoomInOnly:!!this.context.floorId||!leavingFloor});}
     choose(id,{billboard=false}={}){
       if(this.draft){this.api.toast('층 등록을 완료하거나 취소하세요.');return true;}
-      if(id==='@site'){this.finish();this.selected=null;this.context={};this.api.clearEquipment();this.api.disarm();this.api.refresh();return true;}
+      if(id==='@site'){this.finish();this.selected='@site';this.context={};this.api.clearEquipment();this.api.disarm();this.api.refresh();return true;}
       const equipment=this.api.state().equipment.find(e=>e.id===id),floor=this.api.state().floors.find(f=>f.id===equipment?.floorId);
       if(floor&&this.context.floorId!==floor.id){this.finish();this.focusFloor(floor.id);this.api.refresh();this.api.fit({preserveAngle:true,zoomInOnly:true});return false;}
       if(!S.get(this.api.state(),id))return false;
@@ -97,6 +97,7 @@
     clear(){this.finish();this.selected=null;}
     keepSelection(){
       const state=this.api.state();
+      if(this.selected==='@site')return true;
       if(S.get(state,this.selected)){this.finish();return true;}
       const id=this.context.floorId||this.context.buildingId;
       if(!S.get(state,id))return false;
@@ -129,14 +130,14 @@
     }
     resize(input){
       if(this.edit?.input!==input)this.finish();const item=S.get(this.api.state(),this.selected);if(!item)return;
-      if(S.kind(this.api.state(),item.id)==='floor'){input.value=item[input.name];return;}
-      if(['width','depth','height'].includes(input.name)&&this.buildingSizeLocked()){input.value=item[input.name];return;}
+      if(S.kind(this.api.state(),item.id)==='floor'){input.value=input.name==='rotation'?item[input.name]:M.displayCoordinate(item[input.name]);return;}
+      if(['width','depth','height'].includes(input.name)&&this.buildingSizeLocked()){input.value=M.displayCoordinate(item[input.name]);return;}
       this.edit??={input,baseline:M.clone(item),state:M.clone(this.api.state()),lock:$('space-lock').checked};
-      this.attempt(()=>{const next=M.clone(this.edit.state),target=S.get(next,item.id);Object.assign(target,['width','depth','height'].includes(input.name)?M.resizeDimensions(this.edit.baseline,input.name,input.valueAsNumber,this.edit.lock):{[input.name]:input.valueAsNumber});this.api.preview(next);for(const name of ['width','depth','height'])if(this.host.elements.namedItem(name)!==input)this.host.elements.namedItem(name).value=target[name];$('space-error').textContent='';});
+      this.attempt(()=>{const next=M.clone(this.edit.state),target=S.get(next,item.id);Object.assign(target,['width','depth','height'].includes(input.name)?M.resizeDimensions(this.edit.baseline,input.name,input.valueAsNumber,this.edit.lock):{[input.name]:input.valueAsNumber});this.api.preview(next);for(const name of ['width','depth','height'])if(this.host.elements.namedItem(name)!==input)this.host.elements.namedItem(name).value=M.displayCoordinate(target[name]);$('space-error').textContent='';});
     }
     finish(ok=true){if(!this.edit)return;this.edit=null;this.api.finish(ok);this.fill();}
     remove(){
-      if(!this.selected)return;this.finish();const state=this.api.state(),floor=state.floors.find(f=>f.id===this.selected);
+      if(!this.selected||this.selected==='@site')return;this.finish();const state=this.api.state(),floor=state.floors.find(f=>f.id===this.selected);
       if(floor){
         this.pendingFloorDelete={id:floor.id,snapshot:JSON.stringify(state)};
         const count=state.equipment.filter(e=>e.floorId===floor.id).length;
@@ -187,8 +188,8 @@
       }
       return null;
     }
-    spacePath(floorId){const state=this.api.state(),floor=state.floors.find(f=>f.id===floorId),building=state.buildings.find(b=>b.id===floor?.buildingId);return floor?(building?building.name+' > ':'대지 > ')+floor.name:'대지';}
-    membershipText(ids){const paths=[...new Set(this.api.state().equipment.filter(e=>ids.includes(e.id)).map(e=>this.spacePath(e.floorId)))];return paths.length>1?'여러 공간 ('+paths.length+'곳)':paths[0]||'대지';}
+    spacePath(floorId){const state=this.api.state(),floor=state.floors.find(f=>f.id===floorId),building=state.buildings.find(b=>b.id===floor?.buildingId),site=state.site.name??'대지';return floor?(building?building.name+' > ':site+' > ')+floor.name:site;}
+    membershipText(ids){const paths=[...new Set(this.api.state().equipment.filter(e=>ids.includes(e.id)).map(e=>this.spacePath(e.floorId)))];return paths.length>1?'여러 공간 ('+paths.length+'곳)':paths[0]||(this.api.state().site.name??'대지');}
     reparent(ids,parentId,referenceId=null,position='inside'){
       const state=this.api.state(),list=Array.isArray(ids)?ids:[ids],target=S.get(state,parentId),spatial=list.some(id=>S.kind(state,id));
       const info=this.dropInfo(list,parentId);if(info&&!info.valid){this.api.toast(info.label);return true;}
@@ -272,14 +273,14 @@
         dimensions.innerHTML='<label class="ratio-lock"><input type="checkbox">비율 고정</label><div class="field-row three"><label>가로 <span>m</span><input name="width" type="number" min="0.01" step="any"></label><label>세로 <span>m</span><input name="depth" type="number" min="0.01" step="any"></label><label>높이 <span>m</span><input name="height" type="number" min="0.01" step="any"></label></div><p class="dimension-note floor-size-limit"></p>';
         const lock=dimensions.querySelector('[type="checkbox"]');lock.checked=slot.locked!==false;lock.setAttribute('aria-label',slot.level+' 비율 고정');lock.onchange=()=>{slot.locked=lock.checked;};
         let baseline=null;
-        const sync=()=>{const limits=S.floorSizeLimits(state,this.draft.buildingId,this.draft.slots,slot);for(const input of dimensions.querySelectorAll('[type="number"]')){input.value=Number(slot.size[input.name].toFixed(6));input.max='100000';}dimensions.querySelector('.floor-size-limit').textContent='높이 최대 '+Number(limits.height.toFixed(4))+' m · 건물·층간격 내에서 조절';};
+        const sync=()=>{const limits=S.floorSizeLimits(state,this.draft.buildingId,this.draft.slots,slot);for(const input of dimensions.querySelectorAll('[type="number"]')){input.value=M.displayCoordinate(slot.size[input.name]);input.max='100000';}dimensions.querySelector('.floor-size-limit').textContent='높이 최대 '+Number(limits.height.toFixed(4))+' m · 건물·층간격 내에서 조절';};
         for(const input of dimensions.querySelectorAll('[type="number"]')){
           input.setAttribute('aria-label',slot.level+' '+({width:'가로',depth:'세로',height:'높이'}[input.name]));
           input.onfocus=()=>{baseline={...slot.size};};
           input.oninput=()=>{
             $('floors-apply').disabled=true;
             this.attempt(()=>{const value=input.valueAsNumber,limits=S.floorSizeLimits(state,this.draft.buildingId,this.draft.slots,slot),next=S.fitFloorSize(baseline||slot.size,limits,input.name,value,lock.checked);slot.size=next;
-              for(const other of dimensions.querySelectorAll('[type="number"]'))if(other!==input)other.value=Number(next[other.name].toFixed(6));
+              for(const other of dimensions.querySelectorAll('[type="number"]'))if(other!==input)other.value=M.displayCoordinate(next[other.name]);
               if(Math.abs(next[input.name]-value)>1e-8)input.value=next[input.name];
               this.previewRegistration(false);this.updateSizeLimits();
             });
@@ -317,7 +318,7 @@
         this.draft.slots=S.fitFloorSlots(this.api.state(),this.draft.buildingId,entries);this.renderSlots();this.previewRegistration(false);
       });
     }
-    syncFloorPosition(){if(this.draft)for(const axis of ['x','z'])$('floors-'+axis).value=Number(this.draft.position[axis].toFixed(6));}
+    syncFloorPosition(){if(this.draft)for(const axis of ['x','z'])$('floors-'+axis).value=M.displayCoordinate(this.draft.position[axis]);}
     bindFloorPosition(host){
       let baseline=null;
       this.positionEditReset=()=>{baseline=null;};
@@ -362,11 +363,11 @@
     cancelRegistration(){if(!this.draft)return;this.draft=null;this.closeRegistration();this.api.refresh();}
     reset(){this.finish();this.powerPicker?.close();this.selected=null;this.context={};this.draft=null;this.closeRegistration();}
     display(state){const view=S.view(state,this.context);view.equipment=view.equipment.map(e=>S.kind(state,e.id)==='floor'?{...e,noGizmo:true}:e);return view;}
-    fill(){const item=S.get(this.api.state(),this.selected);if(!item)return;for(const name of ['x','z','rotation','width','depth','height','elevation']){const input=this.host.elements.namedItem(name);if(input!==document.activeElement)input.value=item[name]??0;}if(document.activeElement!==$('space-name'))$('space-name').value=item.name;}
+    fill(){const item=S.get(this.api.state(),this.selected);if(!item)return;for(const name of ['x','z','rotation','width','depth','height','elevation']){const input=this.host.elements.namedItem(name);if(input!==document.activeElement)input.value=name==='rotation'?item[name]??0:M.displayCoordinate(item[name]??0);}if(document.activeElement!==$('space-name'))$('space-name').value=item.name;}
     render(preserve=false){
-      const state=this.api.state();if(this.selected&&!S.get(state,this.selected))this.selected=null;
+      const state=this.api.state();if(this.selected&&this.selected!=='@site'&&!S.get(state,this.selected))this.selected=null;
       if(this.context.floorId&&!state.floors?.some(f=>f.id===this.context.floorId))this.context={};if(this.context.buildingId&&!state.buildings?.some(b=>b.id===this.context.buildingId))this.context={};
-      if(this.draft||this.locked){for(const id of ['new','open','save','export-default','site-edit','asset-open'])$(id).disabled=!!this.draft;this.locked=!!this.draft;}
+      if(this.draft||this.locked){for(const id of ['new','open','save','export-default','asset-open'])$(id).disabled=!!this.draft;this.locked=!!this.draft;}
       if(this.draft){$('undo').disabled=$('redo').disabled=true;}
       const item=S.get(state,this.selected),k=S.kind(state,this.selected);this.host.hidden=!item;
       if(item||this.draft){$('properties').hidden=$('project-properties').hidden=$('inspector-empty').hidden=$('connection-properties').hidden=true;}
@@ -384,16 +385,23 @@
         $('space-warning').textContent=S.warnings(state).join('\n');if(!preserve&&!this.edit)this.fill();
       }
       const navigation=button('',()=>this.back()),inside=!!(this.context.buildingId||this.context.floorId);
-      navigation.className='space-navigation';navigation.disabled=!inside;navigation.setAttribute('aria-label',inside?'뒤로가기':'홈');navigation.title=inside?'상위 씬으로 이동':'대지';
+      navigation.className='space-navigation';navigation.disabled=!inside;navigation.setAttribute('aria-label',inside?'뒤로가기':'홈');navigation.title=inside?'상위 씬으로 이동':(state.site.name??'대지');
+      if(!inside&&state.site.name!==undefined)navigation.setAttribute('data-i18n-raw-title','');
       navigation.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+(inside?'M19 12H5m7-7-7 7 7 7':'m3 10 9-7 9 7M5 9v12h14V9M9 21v-8h6v8')+'"/></svg>';
-      this.crumb.replaceChildren(navigation,button('대지',()=>this.choose('@site')));
+      this.crumb.replaceChildren(navigation,button(state.site.name??'대지',()=>this.choose('@site')));
+      this.crumb.lastElementChild.setAttribute(state.site.name===undefined?'data-i18n-ui':'data-i18n-skip','');
       const b=state.buildings?.find(b=>b.id===this.context.buildingId),f=state.floors?.find(f=>f.id===this.context.floorId);
       if(b)this.crumb.append(document.createTextNode(' › '),button(b.name,()=>this.enter(b.id)));
       if(f)this.crumb.append(document.createTextNode(' › '),button(f.name,()=>this.choose(f.id)));
       for(const item of this.crumb.querySelectorAll('button:not(.space-navigation)'))item.title=item.textContent;
       this.crumb.lastElementChild.setAttribute('aria-current','location');
       if(!preserve){
-        const ids=this.api.selectedIds();$('equipment-space-path').textContent=this.membershipText(ids);
+        const ids=this.api.selectedIds(),path=$('equipment-space-path');path.textContent=this.membershipText(ids);
+        if(root.FEMSI18n){
+          const state=this.api.state(),selected=state.equipment.filter(e=>ids.includes(e.id)),paths=new Set(selected.map(e=>this.spacePath(e.floorId)));
+          path.toggleAttribute('data-i18n-ui',paths.size>1);
+          path.toggleAttribute('data-i18n-site-path',state.site.name===undefined&&paths.size<=1&&selected.every(e=>!state.floors.find(f=>f.id===e.floorId)?.buildingId));
+        }
         this.powerPicker?.update();
       }
     }

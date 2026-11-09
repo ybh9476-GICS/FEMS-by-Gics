@@ -163,6 +163,7 @@
       const parent=state.equipment.find(e=>e.id===line.parentId),child=state.equipment.find(e=>e.id===line.id);
       $('connection-scope').textContent=`편집 대상: ${L.editScope(state,line.id).name}${line.externalFloor?' (층별 외부 연결선)':line.crossSpace?' (외부 연결선)':' 연결망 전체'}`;
       $('connection-title').textContent=line.label||`${parent.name} → ${child.name}`;
+      if(line.labelParts){$('connection-title').replaceChildren(...line.labelParts.map(part=>{const span=document.createElement('span');span.setAttribute(part.ui?'data-i18n-ui':'data-i18n-skip','');span.textContent=part.text;return span;}));}
       if(document.activeElement!==$('connection-diameter'))$('connection-diameter').value=line.diameter;
       const selectedColor=this.selection.kind==='segment'?line.segmentColors[this.selection.index]:null;
       for(const button of $('connection-palette').children){button.disabled=!selectedColor;button.setAttribute('aria-pressed',String(button.dataset.color===selectedColor));}

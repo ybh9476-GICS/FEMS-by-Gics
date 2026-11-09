@@ -7,7 +7,7 @@
   const defaultBackupKey=M.STORAGE_KEY+'-before-default-update';
   const defaultAppliedKey=M.STORAGE_KEY+'-applied-default';
   const S=window.FEMSSpatial;
-  let library,spaces;
+  let library,spaces,siteProperties;
   let bundled=P.attach(window.FEMSDefaults.seed(window.FEMSDefaultLayout),defaultAssets,'new',defaultRevision);
   bundled.project.kind='new';bundled.project.baseRevision=defaultRevision;
   let initial=M.clone(bundled), startupMessage='', autosaveAllowed=true, storageFailed=false;
@@ -96,13 +96,13 @@
     } catch(error) {input.setAttribute('aria-invalid','true');$('property-error').textContent=error.message;}
   }
   function currentGroup(){if(!groupFrame)groupFrame=M.groupBounds(history.current,selectedIds);return M.groupBounds(history.current,selectedIds,groupFrame);}
-  function syncGroup(exceptInput=null){const values=currentGroup();for(const name of ['x','z','rotation','width','depth','height']){const input=$('properties').elements.namedItem(name);if(input!==exceptInput)input.value=Number(values[name].toFixed(6));}}
+  function syncGroup(exceptInput=null){const values=currentGroup();for(const name of ['x','z','rotation','width','depth','height']){const input=$('properties').elements.namedItem(name);if(input!==exceptInput)input.value=name==='rotation'?Number(values[name].toFixed(6)):M.displayCoordinate(values[name]);}}
 
   const dimensionFields = ['width', 'depth', 'height'];
   function syncDimensions(item, exceptInput = null) {
     for (const name of dimensionFields) {
       const input = $('properties').elements.namedItem(name);
-      if (input !== exceptInput) input.value = item[name];
+      if (input !== exceptInput) input.value = M.displayCoordinate(item[name]);
     }
   }
   function finishPropertyEdit(commit = true) {
@@ -113,7 +113,7 @@
     const changed = history.finishEdit(commit);
     if(group){if(!commit)groupFrame=frame;syncGroup();}
     const item = history.current.equipment.find(e => e.id === id);
-    if (item) { input.value = item[input.name]; syncDimensions(item); }
+    if (item) { input.value = ['x','z',...dimensionFields].includes(input.name)?M.displayCoordinate(item[input.name]):item[input.name]; syncDimensions(item); }
     input.removeAttribute('aria-invalid');
     $('property-error').textContent = '';
     if (changed) saveLocal();
@@ -213,12 +213,13 @@
     $('transform-note').textContent=multiple?'선택 영역의 중심 기준 이동·회전 · 회전은 선택 시작 상태가 0°':'화살표: 축 이동 · 사각형: X·Z 동시 이동 · ↻ 90°: 회전';
     $('dimension-note').textContent=multiple?'선택 영역의 크기입니다. 중심점 기준으로 설비 간 간격과 모든 치수를 같은 비율로 조절합니다.':'기본 치수는 배치용 예시입니다. 실제 설비 규격에 맞게 변경하세요.';
     if(multiple){
+      window.FEMSI18n?.protect($('selection-type'),false);window.FEMSI18n?.protect($('selection-en'),false);
       $('selection-type').textContent=selectedIds.length+'개 설비 선택됨';$('selection-en').textContent='-';$('selection-icon').textContent='◇';
       $('selection-description').textContent='선택한 설비를 함께 편집합니다. 변경과 삭제는 한 번의 실행 취소로 복원할 수 있습니다.';
       for(const name of ['name','code'])form.elements.namedItem(name).value='-';syncGroup();return;
     }
-    if(!item)return;const def=C.get(item.type);$('selection-type').textContent=def.name;$('selection-en').textContent=def.en;$('selection-icon').innerHTML=icon(item.type);$('selection-description').textContent=def.description;
-    for(const name of ['name','code','x','z','rotation','width','depth','height'])form.elements.namedItem(name).value=item[name];
+    if(!item)return;const def=C.get(item.type);window.FEMSI18n?.protect($('selection-type'),!!def.custom);window.FEMSI18n?.protect($('selection-en'),!!def.custom);$('selection-type').textContent=def.name;$('selection-en').textContent=def.en;$('selection-icon').innerHTML=icon(item.type);$('selection-description').textContent=def.description;
+    for(const name of ['name','code','x','z','rotation','width','depth','height'])form.elements.namedItem(name).value=['x','z',...dimensionFields].includes(name)?M.displayCoordinate(item[name]):item[name];
   }
   function render(preserveInputs=false){
     syncProject();const state=history.current;
@@ -229,13 +230,12 @@
     const canAlign=view!=='schematic'&&!spaces?.selected&&alignItems.length>1&&alignItems.every(e=>(e.floorId||null)===(alignItems[0].floorId||null));
     for(const direction of ['horizontal','vertical'])$('align-'+direction).disabled=!canAlign;
     $('grid-size').textContent=view==='schematic'?'연결 관계':M.siteGridStep(display.site)+' m 그리드';$('equipment-count').textContent=state.equipment.length;
-    $('site-size').textContent=state.site.width+' × '+state.site.depth+' m';
     $('empty-state').hidden=display.equipment.length>0||!!armed;
     $('empty-state').querySelector('strong').textContent=spaces?.context.buildingId?'층을 등록하세요':'첫 번째 오브젝트를 배치해 보세요';$('empty-state').querySelector('span').textContent=spaces?.context.buildingId?'우측 층 등록·수정에서 층을 구성하세요.':'하단 썸네일에서 설비·건물·층을 선택하세요.';$('undo').disabled=!history.past.length&&!history.editingChanged;$('redo').disabled=!history.future.length||history.editingChanged;
     $('overlap-status').textContent=warnings.size?'배치 겹침 '+warnings.size+'개 확인':'';
     if(!preserveInputs)renderInspector();
     if(tree){tree.projectSelected=projectSelected;tree.render(S?S.treeState(state):state,spaces?.selected||selected,false,spaces?.selected?[spaces.selected]:selectedIds);}
-    links?.render(view);spaces?.render(preserveInputs);
+    links?.render(view);spaces?.render(preserveInputs);siteProperties?.render();
     if(scene&&view!=='schematic'){scene.groupPivot=!spaces?.selected&&selectedIds.length>1?currentGroup():null;scene.connectionSelection=links?.selection;scene.setState(display,spaces?.selected||selected,warnings,spaces?.selected?[spaces.selected]:selectedIds.filter(id=>display.equipment.some(e=>e.id===id)));}
     schematic?.setState(state,selected);
   }
@@ -278,7 +278,7 @@
     Object.assign(item,pos);
     try {
       if(history.preview(window.FEMSConnections.followEquipment(baseline,next))){
-        for(const name of ['x','z'])$('properties').elements.namedItem(name).value=item[name];
+        for(const name of ['x','z'])$('properties').elements.namedItem(name).value=M.displayCoordinate(item[name]);
         saveLocal();render(true);
       }
     }catch(error){$('property-error').textContent=error.message;}
@@ -295,7 +295,7 @@
     if(spaces?.selected){const changed=history.finishEdit(commit);if(changed)saveLocal();render();return;}
     const changed=history.finishEdit(commit);
     const item=history.current.equipment.find(e=>e.id===selected);
-    if(item)for(const name of ['x','z'])$('properties').elements.namedItem(name).value=item[name];
+    if(item)for(const name of ['x','z'])$('properties').elements.namedItem(name).value=M.displayCoordinate(item[name]);
     if(changed)saveLocal();
     render(true);
     if(changed)toast(commit?'설비 위치를 변경했습니다.':'설비 이동을 취소했습니다.');
@@ -309,21 +309,6 @@
   for(const direction of ['horizontal','vertical'])$('align-'+direction).addEventListener('click',()=>alignSelection(direction));
   $('fit').addEventListener('click',fitView);$('zoom-in').addEventListener('click',()=>view==='schematic'?schematic?.zoom(1/.85):scene?.zoom(.85));$('zoom-out').addEventListener('click',()=>view==='schematic'?schematic?.zoom(1/1.18):scene?.zoom(1.18));
   $('labels-toggle').addEventListener('click',()=>{if(!scene)return;scene.showLabels=!scene.showLabels;$('labels-toggle').setAttribute('aria-pressed',String(scene.showLabels));scene.invalidate();});
-  $('site-edit').addEventListener('click',()=>{
-    finishPropertyEdit();arm(null);
-    $('site-width').value=history.current.site.width;$('site-depth').value=history.current.site.depth;
-    $('site-error').textContent='';$('site-dialog').showModal();
-  });
-  $('site-cancel').addEventListener('click',()=>$('site-dialog').close());
-  $('site-dialog').addEventListener('keydown',event=>event.stopPropagation());
-  $('site-form').addEventListener('input',()=>$('site-error').textContent='');
-  $('site-form').addEventListener('submit',event=>{
-    event.preventDefault();
-    try {
-      const next=M.resizeSite(history.current,$('site-width').valueAsNumber,$('site-depth').valueAsNumber);
-      if(commit(next,'대지 크기를 변경했습니다.')){$('site-dialog').close();scene?.fit();}
-    } catch(error) {$('site-error').textContent=error.message;}
-  });
   $('undo').addEventListener('click',()=>travel('undo'));$('redo').addEventListener('click',()=>travel('redo'));
   $('rotate').addEventListener('click',rotate);$('delete').addEventListener('click',remove);$('duplicate').addEventListener('click',duplicate);
   $('properties').addEventListener('input', event => updateProperty(event.target));
@@ -430,6 +415,7 @@
     clearEquipment:()=>{links?.clear();finishPropertyEdit();projectSelected=false;selected=null;selectedIds=[];groupFrame=null;},
     disarm:()=>arm(null),selectEquipment:(id,ids,options)=>select(id,ids,false,false,!!options?.preserveSpace),registerAsset:(kind,callback)=>library.open(kind,callback),finishEquipmentEdit:finishPropertyEdit,
   });
+  siteProperties=new window.FEMSSiteProperties({state:()=>history.current,selected:()=>spaces?.selected==='@site',commit});
   renderCatalog();render();scene?.fit();
   if(assetStartupMessage)library.showStatus(assetStartupMessage);
   if(startupMessage){$('save-status').textContent='복원 실패 · 자동 저장 중지';toast(startupMessage);}else{$('save-status').textContent='로컬 작업 공간 · 자동 저장';if(branchMigrationMessage)toast(branchMigrationMessage);}

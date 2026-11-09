@@ -88,6 +88,7 @@
         const nested=children.has(n.id),expanded=!!this.search.value||!this.collapsed.has(n.id),toggle=document.createElement('button');toggle.type='button';toggle.className='power-toggle';toggle.textContent=nested?(expanded?'▾':'▸'):'·';toggle.disabled=!nested||!!this.search.value;toggle.setAttribute('aria-label',n.name+(expanded?' 접기':' 펼치기'));
         if(nested)toggle.setAttribute('aria-expanded',String(expanded));toggle.onclick=()=>{expanded?this.collapsed.add(n.id):this.collapsed.delete(n.id);this.renderTree();};row.append(toggle);
         const name=document.createElement(n.isEquipment?'button':'span');name.textContent=n.name;name.title=n.path;name.className='power-node';
+        if(n.id==='@site'&&this.api.state().site.name===undefined){name.setAttribute('data-i18n-ui','');name.setAttribute('data-i18n-site-label','');}
         if(n.isEquipment){name.type='button';name.disabled=n.blocked;name.setAttribute('aria-pressed',String(this.draft.target===n.id));name.onclick=()=>{this.draft.target=n.id;this.error.textContent='';this.renderTree();};}
         row.append(name);if(n.blocked){const reason=document.createElement('small');reason.textContent=n.reason;row.append(reason);}li.append(row);host.append(li);
         if(nested&&expanded){const group=document.createElement('ul');li.append(group);append(n.id,group);}
