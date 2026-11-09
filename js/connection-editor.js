@@ -168,7 +168,7 @@
       for(const button of $('connection-palette').children){button.disabled=!selectedColor;button.setAttribute('aria-pressed',String(button.dataset.color===selectedColor));}
       const point=this.selection.kind==='point'?line.points[this.selection.index]:null;
       const locked=!!point&&L.isLocked(line,this.selection.index),junction=!!point&&line.pointKinds?.[this.selection.index]==='junction';
-      $('connection-selection').textContent=point?junction?'공유 분기점 · 연결된 가지와 함께 이동':`포인트 ${this.selection.index+1} / ${line.points.length}${locked?' · 설비 고정점 (이동·삭제 불가)':line.pointKinds?.[this.selection.index]==='portal'?' · 외부 이름표 (이동 가능)':''}`:`선분 ${this.selection.index+1} · 부모 → 자식`;
+      $('connection-selection').textContent=point?junction?'공유 분기점 · 연결된 가지와 함께 이동':`포인트 ${this.selection.index+1} / ${line.points.length}${locked?' · 설비 고정점 (이동·삭제 불가)':line.pointKinds?.[this.selection.index]==='portal'?' · 외부 빌보드 (이동 가능)':''}`:`선분 ${this.selection.index+1} · 부모 → 자식`;
       $('connection-point-fields').hidden=!point;
       $('connection-y-field').hidden=!line.crossSpace;
       for(const axis of ['x','y','z'])$('connection-'+axis).disabled=locked;

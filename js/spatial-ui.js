@@ -378,7 +378,7 @@
         for(const name of ['x','z'])this.host.elements.namedItem(name).readOnly=!building;
         $('space-selection-type').textContent=building?'건물':'층';
         $('space-selection-en').textContent=building?'Building':'Floor';
-        $('space-selection-description').textContent=def?.missing?def.description:building?'층과 설비가 배치되는 건물입니다. 층 이름표를 선택하여 해당 층으로 이동합니다.':'건물 내부의 설비를 배치하는 공간입니다. 이 층에 배치된 설비를 관리합니다.';
+        $('space-selection-description').textContent=def?.missing?def.description:building?'층과 설비가 배치되는 건물입니다. 층 빌보드를 선택하여 해당 층으로 이동합니다.':'건물 내부의 설비를 배치하는 공간입니다. 이 층에 배치된 설비를 관리합니다.';
         $('space-selection-icon').innerHTML='<span class="equipment-icon"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="'+(building?'M6 29V5h20v24M3 29h26M11 29v-7h10v7M11 10h2m6 0h2M11 15h2m6 0h2':'M3 13 16 6l13 7-13 7zM3 18l13 7 13-7M3 23l13 7 13-7')+'"/></svg></span>';
         $('space-name-label').textContent=k==='building'?'건물 이름':'층 이름';$('space-size-label').textContent=k==='building'?'건물 크기':'층 크기';$('space-elevation-label').hidden=k!=='floor';this.host.elements.namedItem('elevation').disabled=!!item.buildingId;this.host.elements.namedItem('elevation').title=item.buildingId?'층 등록·수정에서 옥상 바닥 높이를 설정하면 자동 계산됩니다.':'';$('space-building-actions').hidden=k!=='building';$('space-floor-actions').hidden=k!=='floor';$('space-detach').disabled=!item.buildingId;
         $('space-warning').textContent=S.warnings(state).join('\n');if(!preserve&&!this.edit)this.fill();
