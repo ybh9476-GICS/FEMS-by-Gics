@@ -15,7 +15,7 @@ window.FEMSDefaultLayout = {
       "name": "Grid",
       "x": -25,
       "z": -3.905,
-      "rotation": 0,
+      "rotation": 90,
       "width": 3.6,
       "depth": 3.6,
       "height": 12
@@ -719,7 +719,7 @@ window.FEMSDefaultLayout = {
   "project": {
     "id": "4f5aecd8-84dd-4044-8f59-720f7dc2105d",
     "kind": "new",
-    "baseRevision": "2481a488402864f0ba43948cd402e42e9d4d0bcc73373f84eb080e60507db4c1",
+    "baseRevision": "588e6248c8c824a1cf4b287298ab539214fdba516b845b41c18add264c4845fa",
     "assets": [
       {
         "type": "asset-86e53a87-9cc7-40f8-9196-46b64a887ef1",

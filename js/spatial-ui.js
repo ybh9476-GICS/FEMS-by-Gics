@@ -120,8 +120,8 @@
         if(spaceChanged)this.api.fit({preserveAngle:true});
       }
     }
-    cancelName(){const item=S.get(this.api.state(),this.selected);if(item)$('space-name').value=item.name;}
-    update(changes){if(S.kind(this.api.state(),this.selected)==='floor')return;this.attempt(()=>{const next=M.clone(this.api.state()),item=S.get(next,this.selected);if(!item)return;Object.assign(item,changes);if(this.api.commit(next))this.cancelName();});}
+    cancelName(){const item=S.get(this.api.state(),this.selected);if(item)$('space-name').value=item.name;$('space-error').textContent='';}
+    update(changes){if(S.kind(this.api.state(),this.selected)==='floor'&&(Object.keys(changes).length!==1||!Object.hasOwn(changes,'name')))return;this.attempt(()=>{const next=M.clone(this.api.state()),item=S.get(next,this.selected);if(!item)return;Object.assign(item,changes);M.validate(next);if(this.api.commit(next)){$('space-error').textContent='';this.cancelName();}});}
     buildingSizeLocked(){const state=this.api.state();return S.kind(state,this.selected)==='building'&&state.floors.some(f=>f.buildingId===this.selected);}
     syncSizeAvailability(){
       const locked=this.buildingSizeLocked(),hint=locked?'등록된 층이 있는 건물은 크기를 변경할 수 없습니다.':'';
@@ -375,7 +375,7 @@
         this.syncSizeAvailability();
         const def=C.get(item.type),building=k==='building';
         this.host.classList.toggle('floor-readonly',!building);
-        $('space-name').readOnly=!building;$('space-name').title=building?'Enter로 적용 · Esc 또는 다른 곳 클릭으로 취소':'층 등록·수정에서 변경할 수 있습니다.';
+        $('space-name').readOnly=false;$('space-name').title='Enter로 적용 · Esc 또는 다른 곳 클릭으로 취소';
         for(const name of ['x','z'])this.host.elements.namedItem(name).readOnly=!building;
         $('space-selection-type').textContent=building?'건물':'층';
         $('space-selection-en').textContent=building?'Building':'Floor';

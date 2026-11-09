@@ -224,12 +224,37 @@ test('층이 등록된 건물도 위치와 회전 편집은 유지한다',()=>{
   ui.edit=null;ui.resize({name:'rotation',valueAsNumber:90});assert.equal(preview.buildings[0].rotation,90);assert.equal(state.buildings[0].rotation,0);
 });
 
-test('층 정보창은 이름·위치·크기·회전·기즈모 변경을 차단한다',()=>{
+test('층 정보창은 이름 외 위치·크기·회전·기즈모 변경을 차단한다',()=>{
   const {ui,state}=fixture();state.floors=S.registerFloors(state,'building',S.slots(2,0,false,12)).floors;
   ui.selected=state.floors[0].id;let changes=0;ui.api.commit=ui.api.preview=()=>changes++;
-  const before=M.clone(state);ui.update({name:'변경'});ui.rotate();ui.gizmo(ui.selected,{x:99});
+  const before=M.clone(state);ui.update({name:'변경',x:99});ui.update({x:99});ui.rotate();ui.gizmo(ui.selected,{x:99});
   for(const name of ['x','z','rotation','width','depth','height','elevation'])ui.resize({name,valueAsNumber:99});
   assert.equal(changes,0);assert.deepEqual(state,before);assert.ok(ui.display(state).equipment.filter(e=>S.kind(state,e.id)==='floor').every(e=>e.noGizmo));
+});
+
+test('층 이름 Enter·IME·Esc·포커스 이탈과 저장·실행 취소가 배치와 연결을 보존한다',async()=>{
+  const {ui,state,get}=fixture();Object.assign(state,S.registerFloors(state,'building',S.slots(2,0,false,12)));
+  const floor=state.floors[0],parent={...M.create('receiving',state),floorId:floor.id};state.equipment.push(parent);
+  state.equipment.push({...M.create('panel',state,3,0),floorId:floor.id,parentId:parent.id});Object.assign(state,L.enableShared(state));
+  const P=require('../js/project-file.js'),F=require('../js/asset-format.js'),C=require('../js/catalog.js');
+  const asset=F.metadata({type:'asset-building',kind:'building',name:'생산동',width:20,depth:16,height:12});C.register([asset]);
+  const history=new M.History(P.attach(state,[asset])),before=M.clone(history.current),handlers={};
+  ui.selected=floor.id;ui.api.state=()=>history.current;ui.api.commit=next=>{history.commit(next);return true;};
+  ui.host={addEventListener:(name,fn)=>handlers[name]=fn};
+  const source=fs.readFileSync('js/spatial-ui.js','utf8'),start=source.indexOf("      this.host.addEventListener('submit'");
+  vm.runInNewContext('(function(){'+source.slice(start,source.indexOf('      root.FEMSNumberScrub.install(this.host)',start))+'}).call(ui)',{ui,document:{body:{dataset:{}}}});
+  const input=get('space-name');input.id='space-name';input.value='  생산 구역  ';input.type='text';
+  const key=(key,extra={})=>handlers.keydown({key,target:input,stopPropagation(){},preventDefault(){},...extra});
+  handlers.input({target:input});key('Enter',{isComposing:true});assert.deepEqual(history.current,before);
+  key('Enter');const after=M.clone(before);after.floors.find(f=>f.id===floor.id).name='생산 구역';
+  assert.deepEqual(history.current,after);assert.equal(input.value,'생산 구역');assert.equal(history.past.length,1);
+  for(const name of ['', ' '.repeat(3),'가'.repeat(81)]){input.value=name;key('Enter');assert.deepEqual(history.current,after);assert.match(get('space-error').textContent,/1~80/);}
+  input.value='취소할 이름';key('Escape');assert.equal(input.value,'생산 구역');assert.deepEqual(history.current,after);
+  input.value='이탈할 이름';handlers.focusout({target:input});assert.equal(input.value,'생산 구역');assert.deepEqual(history.current,after);
+  history.undo();assert.deepEqual(history.current,before);history.redo();assert.deepEqual(history.current,after);
+  const decoded=await P.decode((await P.encode(history.current,async()=>require('./helpers/glb.cjs').glb())).bytes);
+  assert.deepEqual(decoded.drawing.floors,after.floors);assert.deepEqual(decoded.drawing.equipment,after.equipment);assert.deepEqual(decoded.drawing.networks,after.networks);
+  ui.selected='building';ui.configure();assert.equal(ui.draft.slots.find(s=>s.floorId===floor.id).name,'생산 구역');
 });
 
 test('층 삭제는 확인 전 데이터를 보존하고 확인 후 하나의 변경으로 처리하며 오래된 확인은 거부한다',()=>{
